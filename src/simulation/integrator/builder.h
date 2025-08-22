@@ -70,11 +70,6 @@ public:
         return static_cast<BuilderImpl&>(*this);
     }
 
-    BuilderImpl& data_traj(ControlTrajectory* data_) {
-        data = data_;
-        return static_cast<BuilderImpl&>(*this);
-    }
-
     BuilderImpl& jacobian(JacobianFunction jac_func_,
                           JacobianFormat jac_fmt_,
                           int* i_row_ = nullptr,
@@ -99,14 +94,13 @@ protected:
 
     f64 t0 = 0.0;
     f64 tf = 0.0;
-    int num_steps = 0;
+    int num_steps = 1;
 
     void* user_data = nullptr;
     f64* parameters = nullptr;
     int p_size = 0;
 
     ControlTrajectory* controls = nullptr;
-    ControlTrajectory* data = nullptr;
 
     JacobianFunction jac_func = nullptr;
     JacobianFormat jac_fmt = JacobianFormat::DENSE;

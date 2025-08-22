@@ -26,28 +26,27 @@
 
 namespace Simulation {
 
-void fcn(f64 t, const f64* x, const f64* u, const f64* p, const f64* w, f64* dxdt, void* user_data) {
-    dxdt[0] = -x[1] + p[0];
-    dxdt[1] = x[0] + p[1];
+void fcn(f64 t, const f64* x, const f64* u, const f64* p, f64* dxdt, void* user_data) {
+    dxdt[0] = -x[0];
+    dxdt[1] = x[0] - 2 * x[1] * p[1] + p[0];
 }
 
-void jac(f64 t, const f64* x, const f64* u, const f64* p, const f64* w, f64* J, void* user_data) {
+void jac(f64 t, const f64* x, const f64* u, const f64* p, f64* J, void* user_data) {
     J[0] = -1.0;
     J[1] = 1.0;
+    J[2] = -2 * p[1];
 }
 
 int radau_wrapper_test() {
     FixedTableFormat<4> table_format = {{12, 22, 22, 16}, {Align::Center, Align::Center, Align::Center, Align::Center}};
 
-    LOG_START_MODULE(table_format, "Test: RADAU interface");
-
-    f64 x_start[2] = {1, 0};
+    f64 x_start[2] = {1, -1};
 
     auto dummy_control = ControlTrajectory{{0, 1}, {{-1, 1}}};
 
-    int nnz = 2;
-    int row[] = { 0, 1 };
-    int col[] = { 1, 0 };
+    int nnz = 3;
+    int row[] = { 0, 1, 1 };
+    int col[] = { 0, 0, 1 };
 
     f64 parameters[] = { -1.0, 1.0 };
 
@@ -55,7 +54,7 @@ int radau_wrapper_test() {
                                         .control(&dummy_control)
                                         .params(parameters, 2)
                                         .jacobian(jac, JacobianFormat::COO, row, col, nnz)
-                                        .interval(0, 1, 15)
+                                        .interval(0, 1, 10)
                                         .radau_scheme(RadauScheme::ADAPTIVE)
                                         .radau_h0(1e-5)
                                         .radau_tol(1e-12, 1e-12)
@@ -67,7 +66,7 @@ int radau_wrapper_test() {
 
     LOG_SUCCESS("RADAU finished successfully with return code {}", radau_integrator.return_code);
 
-    return 0;
+    return radau_integrator.return_code;
 }
 
 } // namespace Simulation

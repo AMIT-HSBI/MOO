@@ -33,8 +33,8 @@ enum class JacobianFormat {
     CSC
 };
 
-using ODEFunction = std::function<void(f64 t, const f64* x, const f64* u, const f64* p, const f64* w, f64* dxdt, void* user_data)>;
-using JacobianFunction = std::function<void(f64 t, const f64* x, const f64* u, const f64* p, const f64* w, f64* J, void* user_data)>;
+using ODEFunction = std::function<void(f64 t, const f64* x, const f64* u, const f64* p, f64* dxdt, void* user_data)>;
+using JacobianFunction = std::function<void(f64 t, const f64* x, const f64* u, const f64* p, f64* J, void* user_data)>;
 
 class Integrator {
 public:
@@ -46,7 +46,6 @@ public:
                f64* parameters,
                int p_size,
                ControlTrajectory* controls,
-               ControlTrajectory* data,
                JacobianFunction jac_fn,
                JacobianFormat jfmt,
                int* row,
@@ -70,27 +69,23 @@ public:
 
     f64* x_start_values;
 
-    void set_controls_only(f64 t);
+    void set_controls(f64 t);
 
     FixedVector<f64> u;
     FixedVector<f64> w;
 
     int x_size;
     int u_size;
-    int w_size;
     int p_size;
 
 private:
     virtual int internal_simulate() = 0;
-
-    void set_inputs(f64 t);
 
     void* user_data;
 
     JacobianFormat jac_fmt;
 
     ControlTrajectory* internal_controls;
-    ControlTrajectory* internal_data;
     f64* parameters;
 
     f64 last_t;

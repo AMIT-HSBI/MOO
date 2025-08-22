@@ -77,21 +77,42 @@ void Trajectory::print_table() {
     print_trajectory_table(t, {
         {"x", x},
         {"u", u}
-    }, "p", p);
+    }, "p", p,
+    "Trajectory Table");
 }
 
 int Trajectory::to_csv(const std::string& filename) const {
-    return write_trajectory_csv(filename, t, {
-        {"x", x},
-        {"u", u}
-    }, "p", p);
+    std::vector<DynamicField> dynamics;
+    if (!x.empty()) dynamics.push_back({"x", x});
+    if (!u.empty()) dynamics.push_back({"u", u});
+
+    std::vector<StaticField> statics;
+    if (!p.empty()) statics.push_back({"p", p});
+
+    return write_csv(filename, t, dynamics, statics);
+}
+
+Trajectory Trajectory::from_csv(const std::string& filename) {
+    std::vector<f64> t_new;
+    std::map<std::string, std::vector<std::vector<f64>>> dynamics;
+    std::map<std::string, std::vector<f64>> statics;
+
+    read_csv(filename, t_new, dynamics, statics);
+
+    return Trajectory(
+        t_new,
+        dynamics.count("x") ? dynamics["x"] : std::vector<std::vector<f64>>{},
+        dynamics.count("u") ? dynamics["u"] : std::vector<std::vector<f64>>{},
+        statics.count("p") ? statics["p"] : std::vector<f64>{},
+        InterpolationMethod::LINEAR
+    );
 }
 
 FixedVector<f64> Trajectory::extract_initial_states() const {
     FixedVector<f64> x0(x.size());
 
-    for (size_t i = 0; i < x.size(); i++) {
-        x0[i] = x[i][0];
+    for (size_t x_idx = 0; x_idx < x.size(); x_idx++) {
+        x0[x_idx] = x[x_idx][0];
     }
 
     return x0;
@@ -197,6 +218,31 @@ ControlTrajectory Trajectory::copy_extract_controls() const {
     return controls_copy;
 }
 
+void ControlTrajectory::print_table() {
+    print_trajectory_table(t, { {"u", u} }, "", {}, "ControlTrajectory Table");
+}
+
+int ControlTrajectory::to_csv(const std::string& filename) const {
+    std::vector<DynamicField> dynamics;
+    if (!u.empty()) dynamics.push_back({"u", u});
+    std::vector<StaticField> statics;
+    return write_csv(filename, t, dynamics, statics);
+}
+
+ControlTrajectory ControlTrajectory::from_csv(const std::string& filename) {
+    std::vector<f64> t_new;
+    std::map<std::string, std::vector<std::vector<f64>>> dynamics;
+    std::map<std::string, std::vector<f64>> statics;
+
+    read_csv(filename, t_new, dynamics, statics);
+
+    ControlTrajectory traj;
+    traj.t = t_new;
+    traj.u = dynamics.count("u") ? dynamics["u"] : std::vector<std::vector<f64>>{};
+    traj.interpolation = InterpolationMethod::LINEAR;
+    return traj;
+}
+
 void ControlTrajectory::interpolate_at_linear(f64 t_query, f64* interpolation_values) const {
     const size_t t_len = t.size();
 
@@ -217,26 +263,26 @@ void ControlTrajectory::interpolate_at_linear(f64 t_query, f64* interpolation_va
     }
 
     // search for the correct interval using the last_t_index
-    size_t i = last_t_index;
-    while (i + 1 < t_len && t_query > t[i + 1]) {
-        i++;
+    size_t t_idx = last_t_index;
+    while (t_idx + 1 < t_len && t_query > t[t_idx + 1]) {
+        t_idx++;
     }
-    while (i > 0 && t_query < t[i]) {
-        i--;
+    while (t_idx > 0 && t_query < t[t_idx]) {
+        t_idx--;
     }
 
     // interval [t[i], t[i+1]]
-    f64 t1 = t[i];
-    f64 t2 = t[i + 1];
+    f64 t1 = t[t_idx];
+    f64 t2 = t[t_idx + 1];
     f64 alpha = (t_query - t1) / (t2 - t1);
 
-    for (size_t k = 0; k < u.size(); ++k) {
-        f64 u1 = u[k][i];
-        f64 u2 = u[k][i + 1];
-        interpolation_values[k] = u1 + alpha * (u2 - u1);
+    for (size_t u_idx = 0; u_idx < u.size(); u_idx++) {
+        f64 u1 = u[u_idx][t_idx];
+        f64 u2 = u[u_idx][t_idx + 1];
+        interpolation_values[u_idx] = u1 + alpha * (u2 - u1);
     }
 
-    last_t_index = i; // keep last_index for next call
+    last_t_index = t_idx; // keep last_index for next call
     return;
 }
 
@@ -258,18 +304,18 @@ void ControlTrajectory::interpolate_at_polynomial(f64 t_query, f64* interpolatio
     }
 
     // search for the correct mesh interval using the last_mesh_interval
-    int i = last_mesh_interval;
-    while (i + 1 < inducing_mesh->intervals && t_query > inducing_mesh->grid[i + 1]) {
-        i++;
+    int m_interval = last_mesh_interval;
+    while (m_interval + 1 < inducing_mesh->intervals && t_query > inducing_mesh->grid[m_interval + 1]) {
+        m_interval++;
     }
-    while (i > 0 && t_query < inducing_mesh->grid[i]) {
-        i--;
+    while (m_interval > 0 && t_query < inducing_mesh->grid[m_interval]) {
+        m_interval--;
     }
 
-    const int mesh_p_order = inducing_mesh->nodes[i];
-    const f64 t_start      = inducing_mesh->grid[i];
-    const f64 t_end        = inducing_mesh->grid[i + 1];
-    const int offset       = inducing_mesh->acc_nodes[i][0];
+    const int mesh_p_order = inducing_mesh->nodes[m_interval];
+    const f64 t_start      = inducing_mesh->grid[m_interval];
+    const f64 t_end        = inducing_mesh->grid[m_interval + 1];
+    const int offset       = inducing_mesh->acc_nodes[m_interval][0];
 
     for (size_t u_idx = 0; u_idx < u.size(); u_idx++) {
         const f64* values_i = u[u_idx].data() + offset;
@@ -279,7 +325,7 @@ void ControlTrajectory::interpolate_at_polynomial(f64 t_query, f64* interpolatio
         );
     }
 
-    last_mesh_interval = i;
+    last_mesh_interval = m_interval;
 }
 
 void ControlTrajectory::interpolate_at(f64 t_query, f64* interpolation_values) const {
@@ -301,6 +347,33 @@ void ControlTrajectory::interpolate_at(f64 t_query, f64* interpolation_values) c
 }
 
 // === Dual Trajectory ===
+
+int CostateTrajectory::to_csv(const std::string& filename) const {
+    std::vector<DynamicField> dynamics;
+    if (!costates_f.empty()) dynamics.push_back({"λ_f", costates_f});
+    if (!costates_g.empty()) dynamics.push_back({"λ_g", costates_g});
+
+    std::vector<StaticField> statics;
+    if (!costates_r.empty()) statics.push_back({"λ_r", costates_r});
+
+    return write_csv(filename, t, dynamics, statics);
+}
+
+CostateTrajectory CostateTrajectory::from_csv(const std::string& filename) {
+    std::vector<f64> t_new;
+    std::map<std::string, std::vector<std::vector<f64>>> dynamics;
+    std::map<std::string, std::vector<f64>> statics;
+
+    read_csv(filename, t_new, dynamics, statics);
+
+    return CostateTrajectory(
+        t_new,
+        dynamics.count("λ_f") ? dynamics["λ_f"] : std::vector<std::vector<f64>>{},
+        dynamics.count("λ_g") ? dynamics["λ_g"] : std::vector<std::vector<f64>>{},
+        statics.count("λ_r") ? statics["λ_r"] : std::vector<f64>{},
+        InterpolationMethod::LINEAR
+    );
+}
 
 CostateTrajectory CostateTrajectory::interpolate_onto_mesh(const Mesh& mesh) const {
     switch (interpolation) {
@@ -353,16 +426,17 @@ CostateTrajectory CostateTrajectory::interpolate_polynomial_onto_grid(const std:
 
 void CostateTrajectory::print() {
     print_trajectory(t, {
-        {"costates_f", costates_f},
-        {"costates_g", costates_g}
-    }, "costates_r", costates_r);
+        {"λ_f", costates_f},
+        {"λ_g", costates_g}
+    }, "λ_r", costates_r);
 }
 
-int CostateTrajectory::to_csv(const std::string& filename) const {
-    return write_trajectory_csv(filename, t, {
-        {"costates_f", costates_f},
-        {"costates_g", costates_g}
-    }, "costates_r", costates_r);
+void CostateTrajectory::print_table() {
+    print_trajectory_table(t, {
+        {"λ_f", costates_f},
+        {"λ_g", costates_g}
+    }, "λ_r", costates_r,
+    "CostateTrajectory Table");
 }
 
 // === helpers for Dual and standard Trajectory ===
@@ -380,10 +454,10 @@ bool check_time_compatibility(
         return false;
     }
 
-    int time_idx = 1;
+    int t_idx = 1;
     for (int i = 0; i < mesh.intervals; i++) {
         for (int j = 0; j < mesh.nodes[i]; j++) {
-            if (std::abs(t_vec[time_idx++] - mesh.t[i][j]) > tol) {
+            if (std::abs(t_vec[t_idx++] - mesh.t[i][j]) > tol) {
                 LOG_WARNING("Time array is not compatible with given Mesh.");
                 return false;
             }
@@ -444,8 +518,8 @@ std::vector<std::vector<f64>> interpolate_polynomial_onto_grid_multiple(const Me
                                                                         const std::vector<f64>& time_grid)
 {
     std::vector<std::vector<f64>> out(values.size());
-    for (size_t i = 0; i < values.size(); i++) {
-        out[i] = interpolate_polynomial_onto_grid_single(mesh, values[i], time_grid);
+    for (size_t var_idx = 0; var_idx < values.size(); var_idx++) {
+        out[var_idx] = interpolate_polynomial_onto_grid_single(mesh, values[var_idx], time_grid);
     }
     return out;
 }
@@ -457,21 +531,21 @@ std::vector<f64> interpolate_linear_single(
 {
     std::vector<f64> out_values(new_t.size());
 
-    for (int i = 0; i < int(new_t.size()); i++) {
-        f64 t_new = new_t[i];
+    for (int t_idx = 0; t_idx < int(new_t.size()); t_idx++) {
+        f64 t_new = new_t[t_idx];
         auto it = std::lower_bound(old_t.begin(), old_t.end(), t_new);
 
         if (it == old_t.begin()) {
-            out_values[i] = values[0];
+            out_values[t_idx] = values[0];
         } else if (it == old_t.end()) {
-            out_values[i] = values.back();
+            out_values[t_idx] = values.back();
         } else {
             int idx = std::distance(old_t.begin(), it);
             f64 t1 = old_t[idx - 1];
             f64 t2 = old_t[idx];
             f64 y1 = values[idx - 1];
             f64 y2 = values[idx];
-            out_values[i] = y1 + (t_new - t1) * (y2 - y1) / (t2 - t1);
+            out_values[t_idx] = y1 + (t_new - t1) * (y2 - y1) / (t2 - t1);
         }
     }
 
@@ -532,28 +606,29 @@ void print_trajectory_table(
     const std::vector<f64>& t,
     const std::vector<std::pair<std::string, std::vector<std::vector<f64>>>>& fields,
     const std::string& static_name,
-    const std::vector<f64>& static_field)
+    const std::vector<f64>& static_field,
+    const std::string title)
 {
     size_t N = t.size();
 
     std::vector<std::string> col_names;
     col_names.push_back("t");
     for (const auto& [name, mat] : fields) {
-        for (size_t j = 0; j < mat[0].size(); j++) {
-            col_names.push_back(fmt::format("{}[{}]", name, j + 1));
+        for (size_t var_idx = 0; var_idx < mat.size(); var_idx++) {
+            col_names.push_back(fmt::format("{}[{}]", name, var_idx + 1));
         }
     }
 
     std::vector<int> widths(col_names.size(), 8);
-    for (size_t c = 0; c < col_names.size(); c++) {
-        widths[c] = std::max(widths[c], static_cast<int>(col_names[c].size()));
+    for (size_t col = 0; col < col_names.size(); col++) {
+        widths[col] = std::max(widths[col], static_cast<int>(col_names[col].size()));
     }
-    for (size_t i = 0; i < N; i++) {
-        widths[0] = std::max(widths[0], static_cast<int>(fmt::format("{:.6e}", t[i]).size()));
+    for (size_t t_idx = 0; t_idx < N; t_idx++) {
+        widths[0] = std::max(widths[0], static_cast<int>(fmt::format("{:.6e}", t[t_idx]).size()));
         size_t col = 1;
         for (const auto& [_, mat] : fields) {
-            for (size_t j = 0; j < mat[0].size(); j++, col++) {
-                widths[col] = std::max(widths[col], static_cast<int>(fmt::format("{:.6e}", mat[i][j]).size()));
+            for (size_t var_idx = 0; var_idx < mat.size(); var_idx++, col++) {
+                widths[col] = std::max(widths[col], static_cast<int>(fmt::format("{:.6e}", mat[var_idx][t_idx]).size()));
             }
         }
     }
@@ -561,81 +636,285 @@ void print_trajectory_table(
     std::vector<Align> aligns(col_names.size(), Align::Right);
     TableFormat tf(widths, aligns);
 
-    LOG_START_MODULE(tf, "Trajectory Table");
+    LOG_START_MODULE(tf, title);
     LOG_ROW(tf, col_names);
     LOG_DASHES(tf);
 
-    for (size_t i = 0; i < N; i++) {
+    for (size_t t_idx = 0; t_idx < N; t_idx++) {
         std::vector<std::string> row;
-        row.push_back(fmt::format("{:.6e}", t[i]));
+        row.push_back(fmt::format("{:.6e}", t[t_idx]));
         for (const auto& [_, mat] : fields) {
-            for (size_t j = 0; j < mat[0].size(); j++) {
-                row.push_back(fmt::format("{:.6e}", mat[i][j]));
+            for (size_t var_idx = 0; var_idx < mat.size(); var_idx++) {
+                row.push_back(fmt::format("{:.6e}", mat[var_idx][t_idx]));
             }
         }
         LOG_ROW(tf, row);
     }
     LOG_DASHES_LN(tf);
 
-    TableFormat tfp({6, widths[1]}, {Align::Right, Align::Right});
-    LOG_ROW(tfp, {static_name, "Value"});
-    LOG_DASHES(tfp);
-    for (size_t i = 0; i < static_field.size(); i++) {
-        LOG_ROW(tfp, {fmt::format("{}[{}]", static_name, i + 1), fmt::format("{:.6e}", static_field[i])});
+    if (static_name != "") {
+        std::string header1 = static_name;
+        std::string header2 = "Value";
+
+        int w1 = static_cast<int>(header1.size());
+        int w2 = static_cast<int>(header2.size());
+
+        for (size_t var_idx = 0; var_idx < static_field.size(); var_idx++) {
+            w1 = std::max(w1, static_cast<int>(fmt::format("{}[{}]", static_name, var_idx + 1).size()));
+            w2 = std::max(w2, static_cast<int>(fmt::format("{:.6e}", static_field[var_idx]).size()));
+        }
+
+        TableFormat tfp({w1, w2}, {Align::Right, Align::Right});
+
+        LOG_ROW(tfp, {header1, header2});
+        LOG_DASHES(tfp);
+        for (size_t var_idx = 0; var_idx < static_field.size(); var_idx++) {
+            LOG_ROW(tfp, {fmt::format("{}[{}]", static_name, var_idx + 1), fmt::format("{:.6e}", static_field[var_idx])});
+        }
+        LOG_DASHES_LN(tfp);
     }
-    LOG_DASHES_LN(tfp);
 }
 
-int write_trajectory_csv(
+// === Shared I/O Helpers ===
+
+/**
+ * @brief write CSV with schema header.
+ */
+int write_csv(
     const std::string& filename,
     const std::vector<f64>& t,
-    const std::vector<std::pair<std::string, std::vector<std::vector<f64>>>>& fields,
-    const std::string& static_name,
-    const std::vector<f64>& static_field) // static_field should ideally have only one value or a set of static values
+    const std::vector<DynamicField>& dynamics,
+    const std::vector<StaticField>& statics)
 {
     std::ofstream file(filename);
     if (!file.is_open()) {
-        std::cerr << "[Warning] Failed to open file for writing: " << filename << "\n";
+        LOG_ERROR("Could not open file {}", filename);
         return -1;
     }
 
-    // header
-    file << "time";
-    for (const auto& [name, mat] : fields) {
-        for (size_t i = 0; i < mat.size(); ++i) {
-            file << "," << name << "[" << i << "]";
+    file << std::fixed << std::setprecision(std::numeric_limits<double>::max_digits10);
+
+    // --- sections / header ---
+    size_t col_index = 0;
+    file << "# time: " << col_index << "\n";
+    col_index++;
+
+    for (const auto& dyn : dynamics) {
+        size_t dim = dyn.data.empty() ? 0 : dyn.data.size();
+        file << "# dynamic: \"" << dyn.name << "\", [";
+        for (size_t var_idx = 0; var_idx < dim; var_idx++) {
+            file << (col_index + var_idx);
+            if (var_idx + 1 < dim) file << ",";
         }
+        file << "]\n";
+        col_index += dim;
     }
 
-    // static field header(s)
-    for (size_t i = 0; i < static_field.size(); ++i) {
-        file << "," << static_name;
-        if (static_field.size() > 1) {
-            file << "[" << i << "]";
+    for (const auto& st : statics) {
+        size_t dim = st.data.size();
+        file << "# static: \"" << st.name << "\", [";
+        for (size_t var_idx = 0; var_idx < dim; var_idx++) {
+            file << (col_index + var_idx);
+            if (var_idx + 1 < dim) file << ",";
         }
+        file << "]\n";
+        col_index += dim;
+    }
+
+    // --- column names ---
+    file << "t";
+    for (const auto& dyn : dynamics) {
+        size_t dim = dyn.data.empty() ? 0 : dyn.data.size();
+        for (size_t var_idx = 0; var_idx < dim; var_idx++) file << "," << dyn.name << "_" << var_idx;
+    }
+    for (const auto& st : statics) {
+        for (size_t var_idx = 0; var_idx < st.data.size(); var_idx++) file << "," << st.name << "_" << var_idx;
     }
     file << "\n";
 
-    file << std::setprecision(16);
+    // --- data ---
+    for (size_t t_idx = 0; t_idx < t.size(); t_idx++) {
+        file << t[t_idx];
 
-    for (size_t k = 0; k < t.size(); ++k) {
-        file << t[k];
-        for (const auto& [_, mat] : fields) {
-            for (const auto& series : mat) {
-                if (k < series.size()) {
-                    file << "," << series[k];
-                } else {
-                    file << ",";
-                }
+        for (const auto& dyn : dynamics) {
+            for (size_t var_idx = 0; var_idx < dyn.data.size(); var_idx++) {
+                file << "," << dyn.data[var_idx][t_idx];
             }
         }
 
-        for (size_t i = 0; i < static_field.size(); ++i) {
-            file << "," << static_field[i];
+        if (t_idx == 0) {
+            for (const auto& st : statics) {
+                for (f64 val : st.data) file << "," << val;
+            }
         }
+
         file << "\n";
     }
 
-    file.close();
     return 0;
+}
+
+std::vector<size_t> parse_schema_indices(const std::string& colblock_str) {
+    std::vector<size_t> indices;
+    std::string colblock = colblock_str;
+    colblock.erase(std::remove(colblock.begin(), colblock.end(), ' '), colblock.end());
+    size_t l = colblock.find('[');
+    size_t r = colblock.find(']');
+    if (l != std::string::npos && r != std::string::npos) {
+        std::string inside = colblock.substr(l + 1, r - l - 1);
+        std::stringstream strsi(inside);
+        std::string idx_str;
+        while (std::getline(strsi, idx_str, ',')) {
+            try {
+                indices.push_back(std::stoul(idx_str));
+            } catch (const std::exception& e) {
+                LOG_ERROR("Invalid index in schema: {}", idx_str.c_str());
+                return {};
+            }
+        }
+    }
+    return indices;
+}
+
+void read_csv(
+    const std::string& filename,
+    std::vector<f64>& t,
+    std::map<std::string, std::vector<std::vector<f64>>>& dynamics,
+    std::map<std::string, std::vector<f64>>& statics)
+{
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        LOG_ERROR("Could not open file {}", filename);
+        return;
+    }
+
+    std::string line;
+    std::map<std::string, std::vector<size_t>> schema_dyn_indices;
+    std::map<std::string, std::vector<size_t>> schema_stat_indices;
+    size_t schema_time_index = MAX_SIZE;
+    bool has_schema = false;
+    
+    // --- parse schema headers if present ---
+    while (std::getline(file, line) && line[0] == '#') {
+        has_schema = true;
+        std::stringstream strs(line.substr(1));
+        std::string tag, field_name;
+
+        strs >> tag;
+        
+        if (tag == "time:") {
+            strs >> schema_time_index;
+        } else {
+            std::string temp_name;
+            strs >> temp_name;
+
+            size_t name_start = line.find('"') + 1;
+            size_t name_end = line.find('"', name_start);
+            field_name = line.substr(name_start, name_end - name_start);
+
+            size_t indices_start = line.find('[', name_end);
+            size_t indices_end = line.find(']', indices_start);
+            std::string indices_str = line.substr(indices_start, indices_end - indices_start + 1);
+            
+            if (tag == "dynamic:") {
+                schema_dyn_indices[field_name] = parse_schema_indices(indices_str);
+            } else if (tag == "static:") {
+                schema_stat_indices[field_name] = parse_schema_indices(indices_str);
+            }
+        }
+    }
+    
+    if (line.empty() && !file.eof()) {
+        LOG_ERROR("File contains schema but no header or data rows.");
+        return;
+    }
+    
+    std::map<std::string, std::vector<size_t>> final_dyn_indices;
+    std::map<std::string, std::vector<size_t>> final_stat_indices;
+    size_t final_time_index = std::numeric_limits<size_t>::max();
+
+    if (has_schema) {
+        final_time_index = schema_time_index;
+        final_dyn_indices = schema_dyn_indices;
+        final_stat_indices = schema_stat_indices;
+    } else {
+        LOG_WARNING("No schema header found. Defaulting to dynamic fields based on column names.");
+        std::stringstream strs_header(line);
+        std::string cell;
+        size_t col_idx = 0;
+        while (std::getline(strs_header, cell, ',')) {
+            cell.erase(std::remove_if(cell.begin(), cell.end(), isspace), cell.end());
+            if (cell == "t") {
+                final_time_index = col_idx;
+            } else if (!cell.empty()) {
+                size_t underscore = cell.rfind('_');
+                if (underscore != std::string::npos) {
+                    std::string base_name = cell.substr(0, underscore);
+                    final_dyn_indices[base_name].push_back(col_idx);
+                }
+            }
+            col_idx++;
+        }
+    }
+
+    bool stat_read = false;
+
+    for (auto& kv : final_dyn_indices) {
+        dynamics[kv.first].resize(kv.second.size());
+    }
+
+    while (std::getline(file, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        std::stringstream strs_data(line);
+        std::vector<std::string> cells;
+        std::string cell;
+        while (std::getline(strs_data, cell, ',')) cells.push_back(cell);
+
+        if (cells.empty()) continue;
+
+        if (final_time_index != std::numeric_limits<size_t>::max() && final_time_index < cells.size() && !cells[final_time_index].empty()) {
+            try {
+                t.push_back(std::stod(cells[final_time_index]));
+            } catch (const std::exception& e) {
+                t.push_back(std::numeric_limits<f64>::quiet_NaN());
+            }
+        } else {
+            t.push_back(std::numeric_limits<f64>::quiet_NaN());
+        }
+
+        for (auto& kv : final_dyn_indices) {
+            size_t var_idx = 0;
+            for (size_t idx : kv.second) {
+                auto& row_data = dynamics[kv.first][var_idx];
+
+                if (idx < cells.size() && !cells[idx].empty()) {
+                    try {
+                        row_data.push_back(std::stod(cells[idx]));
+                    } catch (const std::exception& e) {
+                        row_data.push_back(std::numeric_limits<f64>::quiet_NaN());
+                    }
+                } else {
+                    row_data.push_back(std::numeric_limits<f64>::quiet_NaN());
+                }
+                var_idx++;
+            }
+        }
+
+        if (has_schema && !stat_read) {
+            for (auto& kv : final_stat_indices) {
+                for (size_t idx : kv.second) {
+                    if (idx < cells.size() && !cells[idx].empty()) {
+                        try {
+                            statics[kv.first].push_back(std::stod(cells[idx]));
+                        } catch (const std::exception& e) {
+                            statics[kv.first].push_back(std::numeric_limits<f64>::quiet_NaN());
+                        }
+                    } else {
+                         statics[kv.first].push_back(std::numeric_limits<f64>::quiet_NaN());
+                    }
+                }
+            }
+            stat_read = true;
+        }
+    }
 }

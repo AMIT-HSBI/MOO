@@ -33,7 +33,6 @@ RadauIntegrator::RadauIntegrator(/* generic Integrator */
                                  f64* parameters,
                                  int p_size,
                                  ControlTrajectory* controls,
-                                 ControlTrajectory* data,
                                  JacobianFunction jac_fn,
                                  JacobianFormat jfmt,
                                  int* row,
@@ -45,7 +44,7 @@ RadauIntegrator::RadauIntegrator(/* generic Integrator */
                                  f64 atol,
                                  f64 rtol)
     : Integrator(ode_fn, dense_output_grid, x_start_values, x_size, user_data,
-                 parameters, p_size, controls, data, jac_fn, jfmt, row, col, nnz),
+                 parameters, p_size, controls, jac_fn, jfmt, row, col, nnz),
       scheme(scheme),
       h_init(h_init),
       atol(atol),
@@ -108,19 +107,15 @@ extern "C" void dense_output(
 
         output->t.push_back(t_eval);
 
-        output->x.emplace_back(integrator->x_size);
-        auto& x_vec = output->x.back();
         for (int x_idx = 0; x_idx < integrator->x_size; x_idx++) {
             int fortran_x = x_idx + 1;
-            x_vec[x_idx] = contra_(&fortran_x, &t_eval, cont, lrc);
+            output->x[x_idx].push_back(contra_(&fortran_x, &t_eval, cont, lrc));
         }
 
-        integrator->set_controls_only(t_eval);
+        integrator->set_controls(t_eval);
 
-        output->u.emplace_back(integrator->u_size);
-        auto& u_vec = output->u.back();
         for (int u_idx = 0; u_idx < integrator->u_size; ++u_idx) {
-            u_vec[u_idx] = u_t_eval[u_idx];
+            output->u[u_idx].push_back(u_t_eval[u_idx]);
         }
 
         idx++;

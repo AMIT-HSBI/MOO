@@ -98,6 +98,14 @@ coo_t globl_mr_lt_hes = {
 
 void update_c_problem(void* ctx) { return; }
 
+void eval_f(f64 t, const f64* x, const f64* u, const f64* p, const f64* w, f64* dxdt, void* user_data) {
+    dxdt[0] = x[0] + u[0];
+}
+
+void jac(f64 t, const f64* x, const f64* u, const f64* p, const f64* w, f64* J, void* user_data) {
+    J[0] = 1; /* f_x = 1 */
+}
+
 // [L, f, g]
 void eval_lfg(const f64* xu, const f64* p, f64 t, f64* out) {
     const f64* x = xu;

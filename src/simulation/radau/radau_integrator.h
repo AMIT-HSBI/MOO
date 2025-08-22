@@ -106,7 +106,6 @@ private:
                     f64* parameters,
                     int p_size ,
                     ControlTrajectory* controls,
-                    ControlTrajectory* data,
                     JacobianFunction jac_fn,
                     JacobianFormat jfmt,
                     int* row,
