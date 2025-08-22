@@ -10,10 +10,6 @@ find_package(PkgConfig)
 
 pkg_check_modules(COINHSL coinhsl)
 
-include(ProcessorCount)
-ProcessorCount(N)
-
-
 add_library(moo SHARED)
 
 target_sources(moo PRIVATE
@@ -102,7 +98,7 @@ add_custom_command(
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/third-party/mumps/.libs/libcoinmumps.a
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/third-party/mumps/config.status
-  COMMAND make -j
+  COMMAND $(MAKE)
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/third-party/mumps)
 add_custom_target(coinmumps-build DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/third-party/mumps/.libs/libcoinmumps.a)
 add_library(moo::coinmumps STATIC IMPORTED)
@@ -124,7 +120,7 @@ add_custom_command(
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/third-party/ipopt/src/.libs/libipopt.a
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/third-party/ipopt/config.status
-  COMMAND make -j
+  COMMAND $(MAKE)
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/third-party/ipopt)
 add_custom_target(ipopt-build DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/third-party/ipopt/src/.libs/libipopt.a)
 add_library(moo::ipopt STATIC IMPORTED)
