@@ -82,6 +82,7 @@ public:
     f64 h_init;
     f64 atol;
     f64 rtol;
+    int max_it;
 
     int return_code;
     size_t dense_output_index;
@@ -103,18 +104,16 @@ private:
                     f64* x_start_values,
                     int x_size,
                     void* user_data,
-                    f64* parameters,
+                    const f64* parameters,
                     int p_size ,
-                    ControlTrajectory* controls,
+                    const ControlTrajectory* controls,
                     JacobianFunction jac_fn,
-                    JacobianFormat jfmt,
-                    int* row,
-                    int* col,
-                    int nnz,
+                    Jacobian jac_pattern,
                     RadauScheme scheme,
                     f64 h_init,
                     f64 atol,
-                    f64 rtol);
+                    f64 rtol,
+                    int max_it);
 };
 
 } // namespace Simulation

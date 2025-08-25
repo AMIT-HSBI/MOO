@@ -22,13 +22,11 @@
 #include <nlp/solvers/ipopt/solver.h>
 #include <nlp/instances/gdop/strategies.h>
 #include <base/log.h>
+
 #include <interfaces/c/problem.h>
+#include <interfaces/gdopt/main_gdopt.h>
 
-#include "main_gdopt.h"
-
-extern f64* _rp;
-
-// create config for the algorithm (for now basic)
+// create config for the algorithm (for now basic) not here, this is actually a generic GDOP stuff
 class Config {
 
 };
@@ -41,29 +39,31 @@ void set_global_configuration(Config& config) {
 
 }
 
-void set_global_runtime_parameters(Config& config) {
-    /* set _rp */
-}
-
+// TODO: make this clean
+// TODO: add printout emit
 int main_gdopt(int argc, char** argv, c_problem_t* c_problem) {
     LOG_PREFIX('*', "Entry point [OPT] - main_gdopt\n");
 
     auto config = read_yaml();
     set_global_configuration(config);
 
-    set_global_runtime_parameters(config);
-
-    c_problem->callbacks->update_c_problem(NULL);
-
     auto nlp_solver_settings = NLP::NLPSolverSettings(argc, argv);
     nlp_solver_settings.print();
 
-    //nlp_solver_settings.set(NLP::Option::IpoptDerivativeTest, true);
+    // nlp_solver_settings.set(NLP::Option::IpoptDerivativeTest, true);
 
-    auto mesh = Mesh::create_equidistant_fixed_stages(1 /* tf */, 25 /* intervals */, 3 /* stages */);
-    auto problem = C::create_gdop(c_problem, *mesh);
+    auto mesh = Mesh::create_equidistant_fixed_stages(100 /* tf */, 1 /* intervals */, 100 /* stages */);
+    auto problem = C::Problem::create(c_problem, *mesh);
 
     auto strategies = std::make_unique<GDOP::Strategies>(GDOP::Strategies::default_strategies());
+    FixedVector<f64> tolerances(problem.pc->x_size);
+    tolerances.fill(1e-4);
+
+    strategies->simulation = std::make_shared<GDOP::RadauIntegratorSimulation>(*problem.dynamics);
+    strategies->initialization = std::make_shared<GDOP::SimulationInitialization>(strategies->initialization, strategies->simulation);
+    strategies->verifier = std::make_shared<GDOP::SimulationVerifier>(GDOP::SimulationVerifier(strategies->simulation, Linalg::Norm::NORM_INF, std::move(tolerances)));
+    strategies->emitter = std::make_shared<GDOP::CSVEmitter>("optimal_solution.csv");
+
     auto gdop = GDOP::GDOP(problem);
 
     IpoptSolver::IpoptSolver ipopt_solver(gdop, nlp_solver_settings);

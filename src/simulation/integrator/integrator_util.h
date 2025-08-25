@@ -18,35 +18,36 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef MOO_RADAU_BUILDER_H
-#define MOO_RADAU_BUILDER_H
+#ifndef MOO_INTEGRATOR_UTIL_H
+#define MOO_INTEGRATOR_UTIL_H
 
-#include <vector>
-
-#include <simulation/integrator/builder.h>
-#include <simulation/radau/radau_integrator.h>
+#include <base/util.h>
 
 namespace Simulation {
 
-class RadauBuilder : public IntegratorBuilder<RadauBuilder, RadauIntegrator>{
+enum class JacobianFormat {
+    DENSE,
+    COO,
+    CSC
+};
+
+class Jacobian {
 public:
-    RadauBuilder() : IntegratorBuilder() {}
+    static Jacobian dense();
+    static Jacobian sparse(JacobianFormat sparse_fmt, int* i_row, int* j_col, int nnz);
 
-    RadauBuilder& radau_scheme(RadauScheme radau_scheme_);
-    RadauBuilder& radau_h0(f64 h_init_);
-    RadauBuilder& radau_tol(f64 atol_, f64 rtol_);
-    RadauBuilder& radau_max_it(int max_it_);
-
-    RadauIntegrator build() const override;
+    JacobianFormat jfmt;
+    int* i_row;
+    int* j_col;
+    int nnz;
 
 private:
-    RadauScheme scheme = RadauScheme::ADAPTIVE;
-    f64 h_init = 1e-6;
-    f64 atol = 1e-10;
-    f64 rtol = 1e-10;
-    int max_it = 100000;
+    Jacobian(JacobianFormat jfmt, int* i_row, int* j_col, int nnz);
 };
+
+using ODEFunction = std::function<void(const f64* x, const f64* u, const f64* p, f64 t, f64* f, void* user_data)>;
+using JacobianFunction = std::function<void(const f64* x, const f64* u, const f64* p, f64 t, f64* dfdx, void* user_data)>;
 
 } // namespace Simulation
 
-#endif // MOO_RADAU_BUILDER_H
+#endif // MOO_INTEGRATOR_UTIL_H

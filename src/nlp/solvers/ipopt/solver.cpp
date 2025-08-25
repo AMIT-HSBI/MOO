@@ -51,11 +51,11 @@ void IpoptSolver::optimize() {
 
     switch (status) {
         case Ipopt::Solve_Succeeded:
-            LOG_SUCCESS("[Ipopt Interface] Optimization succeeded!");
+            LOG_SUCCESS("[Ipopt Interface] Optimization succeeded.");
             break;
 
         case Ipopt::Solved_To_Acceptable_Level:
-            LOG_SUCCESS("[Ipopt Interface] Optimization succeeded (acceptable)!");
+            LOG_SUCCESS("[Ipopt Interface] Optimization succeeded (acceptable).");
             break;
 
         case Ipopt::Infeasible_Problem_Detected:
@@ -139,7 +139,7 @@ void IpoptSolver::optimize() {
 void IpoptSolver::init_application() {
     Ipopt::ApplicationReturnStatus status = ipdata->app->Initialize();
     if (status != Ipopt::Solve_Succeeded) {
-        LOG_ERROR("[Ipopt Interface] Error during application initialization!");
+        LOG_ERROR("[Ipopt Interface] Error during application initialization.");
         abort();
     }
 }

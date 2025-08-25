@@ -27,14 +27,11 @@ Integrator::Integrator(ODEFunction ode_fn,
                        f64* x_start_values,
                        int x_size,
                        void* user_data,
-                       f64* parameters,
+                       const f64* parameters,
                        int p_size,
-                       ControlTrajectory* controls,
+                       const ControlTrajectory* controls,
                        JacobianFunction jac_fn,
-                       JacobianFormat jfmt,
-                       int* row,
-                       int* col,
-                       int nnz)
+                       Jacobian jac_pattern)
     : ode_func(ode_fn),
       jac_func(jac_fn),
       dense_output_grid(grid),
@@ -45,14 +42,11 @@ Integrator::Integrator(ODEFunction ode_fn,
       u_size(controls ? controls->u.size() : 0),
       p_size(p_size),
       user_data(user_data),
-      jac_fmt(jfmt),
       internal_controls(controls),
       parameters(parameters),
+      jac_pattern(jac_pattern),
       last_t(MINUS_INFINITY),
-      sparse_jac(FixedVector<f64>(nnz)),
-      i_row(row),
-      j_col(col),
-      nnz(nnz) {}
+      sparse_jac(FixedVector<f64>(this->jac_pattern.nnz)) {}
 
 std::unique_ptr<Trajectory> Integrator::simulate() {
     if (internal_controls) set_controls(dense_output_grid[0]);
@@ -93,23 +87,23 @@ void Integrator::get_dense_jacobian(f64 t, f64* x, f64* out) {
 
     set_controls(t);
 
-    if (jac_fmt == JacobianFormat::DENSE) {
-        jac_func(t, x, u.raw(), parameters, out, user_data);
+    if (jac_pattern.jfmt == JacobianFormat::DENSE) {
+        jac_func(x, u.raw(), parameters, t, out, user_data);
     }
-    else if (jac_fmt == JacobianFormat::COO) {
+    else if (jac_pattern.jfmt == JacobianFormat::COO) {
         sparse_jac.fill_zero();
-        jac_func(t, x, u.raw(), parameters, sparse_jac.raw(), user_data);
+        jac_func(x, u.raw(), parameters, t, sparse_jac.raw(), user_data);
 
-        for (int nz = 0; nz < nnz; nz++) out[i_row[nz] * x_size + j_col[nz]] = sparse_jac[nz];
+        for (int nz = 0; nz < jac_pattern.nnz; nz++) out[jac_pattern.i_row[nz] * x_size + jac_pattern.j_col[nz]] = sparse_jac[nz];
 
     }
-    else if (jac_fmt == JacobianFormat::CSC) {
+    else if (jac_pattern.jfmt == JacobianFormat::CSC) {
         sparse_jac.fill_zero();
-        jac_func(t, x, parameters, u.raw(), sparse_jac.raw(), user_data);
+        jac_func(x, u.raw(), parameters, t, sparse_jac.raw(), user_data);
 
         for (int col = 0; col < x_size; col++) {
-            for (int nz = j_col[col]; nz < j_col[col + 1]; nz++) {
-                out[i_row[nz] * x_size + col] = sparse_jac[nz];
+            for (int nz = jac_pattern.j_col[col]; nz < jac_pattern.j_col[col + 1]; nz++) {
+                out[jac_pattern.i_row[nz] * x_size + col] = sparse_jac[nz];
             }
         }
     }
@@ -117,7 +111,7 @@ void Integrator::get_dense_jacobian(f64 t, f64* x, f64* out) {
 
 void Integrator::get_ode(f64 t, f64* x, f64* out) {
     set_controls(t);
-    ode_func(t, x, u.raw(), parameters, out, user_data);
+    ode_func(x, u.raw(), parameters, t, out, user_data);
 }
 
 } // namespace Simulation

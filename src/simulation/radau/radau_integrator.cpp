@@ -30,25 +30,24 @@ RadauIntegrator::RadauIntegrator(/* generic Integrator */
                                  f64* x_start_values,
                                  int x_size,
                                  void* user_data,
-                                 f64* parameters,
+                                 const f64* parameters,
                                  int p_size,
-                                 ControlTrajectory* controls,
+                                 const ControlTrajectory* controls,
                                  JacobianFunction jac_fn,
-                                 JacobianFormat jfmt,
-                                 int* row,
-                                 int* col,
-                                 int nnz,
+                                 Jacobian jac_pattern,
                                  /* Radau specific */
                                  RadauScheme scheme,
                                  f64 h_init,
                                  f64 atol,
-                                 f64 rtol)
+                                 f64 rtol,
+                                 int max_it)
     : Integrator(ode_fn, dense_output_grid, x_start_values, x_size, user_data,
-                 parameters, p_size, controls, jac_fn, jfmt, row, col, nnz),
+                 parameters, p_size, controls, jac_fn, jac_pattern),
       scheme(scheme),
       h_init(h_init),
       atol(atol),
       rtol(rtol),
+      max_it(max_it),
       return_code(0),
       dense_output_index(0) {}
 
@@ -130,11 +129,13 @@ int RadauIntegrator::internal_simulate() {
 
     int ijac = (jac_func) ? 1 : 0;
     
-    int lwork = 100 + 20 * x_size;
-    int liwork = 100 + 20 * x_size;
+    int lwork = 20 + 8 * x_size * (3 + x_size);
+    int liwork = 20 + 5 * x_size;
 
     std::vector<f64> work(lwork, 0.0);
     std::vector<int> iwork(liwork, 0);
+
+    iwork[1] = max_it;
 
     switch (scheme)
     {
@@ -206,6 +207,8 @@ int RadauIntegrator::internal_simulate() {
     if (return_code < 0) {
         return return_code;
     }
+
+    LOG_SUCCESS("[Radau Integrator] Simulation finished successfully after {} iterations.", iwork[15]);
 
     return 0;
 }

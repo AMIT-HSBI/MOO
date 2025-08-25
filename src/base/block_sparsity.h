@@ -25,9 +25,9 @@
 #include <memory>
 #include <stdexcept>
 
-#include "fixed_vector.h"
-#include "nlp_structs.h"
-
+#include <base/fixed_vector.h>
+#include <base/nlp_structs.h>
+#include <base/log.h>
 
 enum class BlockType {
     Exact,
@@ -128,7 +128,8 @@ struct BlockSparsity {
             case BlockType::Exact:
                 return block[row][col];
             default:
-               throw std::runtime_error("Unknown BlockType in BlockSparsity::access().");
+                LOG_ERROR("Unknown BlockType in BlockSparsity::access().");
+                abort();
         }
     }
 

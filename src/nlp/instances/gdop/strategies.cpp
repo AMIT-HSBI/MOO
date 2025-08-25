@@ -28,13 +28,15 @@ namespace GDOP {
 // ==================== no-op strategies ====================
 
 // no simulation available
-std::unique_ptr<Trajectory> NoSimulation::operator()(const ControlTrajectory& controls, int num_steps, f64 start_time, f64 stop_time, f64* x_start_values) {
+std::unique_ptr<Trajectory> NoSimulation::operator()(const ControlTrajectory& controls, const FixedVector<f64>& parameters,
+                                                     int num_steps, f64 start_time, f64 stop_time, f64* x_start_values) {
     LOG_WARNING("No Simulation strategy set: returning nullptr.");
     return nullptr;
 }
 
 // no simulation step available
-std::unique_ptr<Trajectory> NoSimulationStep::operator()(const ControlTrajectory& controls, f64 start_time, f64 stop_time, f64* x_start_values) {
+std::unique_ptr<Trajectory> NoSimulationStep::operator()(const ControlTrajectory& controls, const FixedVector<f64>& parameters,
+                                                         f64 start_time, f64 stop_time, f64* x_start_values) {
     LOG_WARNING("No SimulationStep strategy set: returning nullptr.");
     return nullptr;
 }
@@ -129,6 +131,38 @@ std::unique_ptr<PrimalDualTrajectory> ConstantInitialization::operator()(const G
     }
 
     return std::make_unique<PrimalDualTrajectory>(std::make_unique<Trajectory>(t, x_guess, u_guess, p_guess, interpolation));
+}
+
+RadauIntegratorSimulation::RadauIntegratorSimulation(Dynamics& dynamics) : dynamics(dynamics) {}
+
+std::unique_ptr<Trajectory> RadauIntegratorSimulation::operator()(
+    const ControlTrajectory& controls,
+    const FixedVector<f64>& parameters,
+    int num_steps,
+    f64 start_time,
+    f64 stop_time,
+    f64* x_start_values)
+{
+    auto ode_f_fn = [this](const f64* x, const f64* u, const f64* p, f64 t, f64* f, void* user_data) {
+        return this->dynamics.eval(x, u, p, t, f, user_data);
+    };
+
+    auto ode_jac_fn = [this](const f64* x, const f64* u, const f64* p, f64 t, f64* dfdx, void* user_data) {
+        return this->dynamics.jac(x, u, p, t, dfdx, user_data);
+    };
+
+    return ::Simulation::RadauBuilder()
+                .interval(start_time, stop_time, num_steps)
+                .states(x_start_values, dynamics.pc.x_size)
+                .control(&controls)
+                .params(parameters.raw(), parameters.int_size())
+                .ode(ode_f_fn)
+                .jacobian(ode_jac_fn, dynamics.jac_pattern)
+                .radau_scheme(::Simulation::RadauScheme::ADAPTIVE)
+                .radau_tol(1e-10, 1e-10)
+                .radau_max_it(5e6)
+                .build()
+                .simulate();
 }
 
 std::vector<f64> LinearInterpolation::operator()(
@@ -271,8 +305,10 @@ std::unique_ptr<PrimalDualTrajectory> SimulationInitialization::operator()(const
     auto simple_guess         = (*initialization)(gdop);                                             // call simple, e.g. constant guess
     auto& simple_guess_primal = simple_guess->primals;
     auto extracted_controls   = simple_guess_primal->copy_extract_controls();                        // extract controls from the guess
+    auto extracted_parameters = FixedVector<f64>(simple_guess_primal->p);
     auto exctracted_x0        = simple_guess_primal->extract_initial_states();                       // extract x(t_0) from the guess
-    auto simulated_guess      = (*simulation)(extracted_controls, gdop.get_mesh().node_count, 0.0,         // perform simulation using the controls and gdop config
+    auto simulated_guess      = (*simulation)(extracted_controls, extracted_parameters,              // perform simulation using the controls and gdop config
+                                              gdop.get_mesh().node_count, 0.0,
                                               gdop.get_mesh().tf, exctracted_x0.raw());
     auto interpolated_sim     = simulated_guess->interpolate_onto_mesh(gdop.get_mesh()); // interpolate simulation to current mesh + collocation
     return std::make_unique<PrimalDualTrajectory>(std::make_unique<Trajectory>(interpolated_sim));
@@ -290,16 +326,17 @@ SimulationVerifier::SimulationVerifier(std::shared_ptr<Simulation> simulation,
     : simulation(simulation), norm(norm), tolerances(std::move(tolerances)) {}
 
 bool SimulationVerifier::operator()(const GDOP& gdop, const PrimalDualTrajectory& trajectory) {
-    auto& trajectory_primal = trajectory.primals;
+    auto& trajectory_primal   = trajectory.primals;
+    auto extracted_controls   = trajectory_primal->copy_extract_controls();   // extract controls from the trajectory
+    auto extracted_parameters = FixedVector<f64>(trajectory_primal->p);       // extract parameters from the trajectory
 
-    auto extracted_controls = trajectory_primal->copy_extract_controls();   // extract controls from the trajectory
     extracted_controls.interpolation = InterpolationMethod::POLYNOMIAL;
     auto exctracted_x0      = trajectory_primal->extract_initial_states();  // extract x(t_0) from the trajectory
 
     // perform simulation using the controls, gdop config and a high number of nodes
     int  high_node_count    = 1 * gdop.get_mesh().node_count;
 
-    auto simulation_result  = (*simulation)(extracted_controls, high_node_count,
+    auto simulation_result  = (*simulation)(extracted_controls, extracted_parameters, high_node_count,
                                             0.0, gdop.get_mesh().tf, exctracted_x0.raw());
 
     // result of high resolution simulation is interpolated onto lower resolution mesh

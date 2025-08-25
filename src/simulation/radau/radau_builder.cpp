@@ -38,6 +38,11 @@ RadauBuilder& RadauBuilder::radau_tol(f64 atol_, f64 rtol_) {
     return *this;
 }
 
+RadauBuilder& RadauBuilder::radau_max_it(int max_it_) {
+    max_it = max_it_;
+    return *this;
+}
+
 RadauIntegrator RadauBuilder::build() const {
     f64 h0 = h_init != 0.0 ? h_init : (dense_output_grid.back() - dense_output_grid[0]) / (2 * dense_output_grid.size());
 
@@ -47,13 +52,13 @@ RadauIntegrator RadauBuilder::build() const {
         x_start_values, x_size,
         user_data, parameters, p_size,
         controls,
-        jac_func, jac_fmt,
-        i_row, j_col, nnz,
+        jac_func, jac_pattern,
         /* Radau specific */
         scheme,
         h0,
         atol,
-        rtol
+        rtol,
+        max_it
     );
 }
 

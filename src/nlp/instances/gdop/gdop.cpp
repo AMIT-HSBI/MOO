@@ -1313,7 +1313,7 @@ std::pair<std::unique_ptr<Trajectory>, std::unique_ptr<Trajectory>> GDOP::finali
         traj.t.reserve(mesh->node_count + 1);
         traj.x.resize(off_x);
         traj.u.resize(off_u);
-        traj.p.reserve(off_p); // TODO: PARAMETERS add parameters to result trajectory
+        traj.p.resize(off_p);
         traj.inducing_mesh = mesh->shared_from_this();
 
         for (auto& v : traj.x) { v.reserve(mesh->node_count + 1); }
@@ -1342,6 +1342,10 @@ std::pair<std::unique_ptr<Trajectory>, std::unique_ptr<Trajectory>> GDOP::finali
 
                 traj.t.push_back(mesh->t[i][j]);
             }
+        }
+
+        for (int p_idx = 0; p_idx < off_p; p_idx++) {
+            traj.p[p_idx] = z_dual[off_xu_total + p_idx];
         }
     }
 

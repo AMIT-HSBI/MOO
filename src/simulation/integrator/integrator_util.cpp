@@ -18,35 +18,28 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef MOO_RADAU_BUILDER_H
-#define MOO_RADAU_BUILDER_H
+#include <cassert>
 
-#include <vector>
-
-#include <simulation/integrator/builder.h>
-#include <simulation/radau/radau_integrator.h>
+#include <simulation/integrator/integrator_util.h>
 
 namespace Simulation {
 
-class RadauBuilder : public IntegratorBuilder<RadauBuilder, RadauIntegrator>{
-public:
-    RadauBuilder() : IntegratorBuilder() {}
+Jacobian::Jacobian(JacobianFormat jfmt,
+                   int* i_row,
+                   int* j_col,
+                   int nnz)
+    : jfmt(jfmt),
+      i_row(i_row),
+      j_col(j_col),
+      nnz(nnz) {}
 
-    RadauBuilder& radau_scheme(RadauScheme radau_scheme_);
-    RadauBuilder& radau_h0(f64 h_init_);
-    RadauBuilder& radau_tol(f64 atol_, f64 rtol_);
-    RadauBuilder& radau_max_it(int max_it_);
+Jacobian Jacobian::dense() {
+    return Jacobian(JacobianFormat::DENSE, nullptr, nullptr, 0);
+}
 
-    RadauIntegrator build() const override;
-
-private:
-    RadauScheme scheme = RadauScheme::ADAPTIVE;
-    f64 h_init = 1e-6;
-    f64 atol = 1e-10;
-    f64 rtol = 1e-10;
-    int max_it = 100000;
-};
+Jacobian Jacobian::sparse(JacobianFormat sparse_fmt, int* i_row, int* j_col, int nnz) {
+    assert(sparse_fmt != JacobianFormat::DENSE);
+    return Jacobian(sparse_fmt, i_row, j_col, nnz);
+}
 
 } // namespace Simulation
-
-#endif // MOO_RADAU_BUILDER_H

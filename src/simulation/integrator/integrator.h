@@ -22,19 +22,13 @@
 #define MOO_INTEGRATOR_H
 
 #include <base/util.h>
+#include <base/log.h>
 #include <base/fixed_vector.h>
 #include <base/trajectory.h>
 
+#include <simulation/integrator/integrator_util.h>
+
 namespace Simulation {
-
-enum class JacobianFormat {
-    DENSE,
-    COO,
-    CSC
-};
-
-using ODEFunction = std::function<void(f64 t, const f64* x, const f64* u, const f64* p, f64* dxdt, void* user_data)>;
-using JacobianFunction = std::function<void(f64 t, const f64* x, const f64* u, const f64* p, f64* J, void* user_data)>;
 
 class Integrator {
 public:
@@ -43,14 +37,11 @@ public:
                f64* x_start_values,
                int x_size,
                void* user_data,
-               f64* parameters,
+               const f64* parameters,
                int p_size,
-               ControlTrajectory* controls,
+               const ControlTrajectory* controls,
                JacobianFunction jac_fn,
-               JacobianFormat jfmt,
-               int* row,
-               int* col,
-               int nnz);
+               Jacobian jac_pattern);
 
     virtual ~Integrator() = default;
 
@@ -72,7 +63,6 @@ public:
     void set_controls(f64 t);
 
     FixedVector<f64> u;
-    FixedVector<f64> w;
 
     int x_size;
     int u_size;
@@ -83,17 +73,14 @@ private:
 
     void* user_data;
 
-    JacobianFormat jac_fmt;
+    const ControlTrajectory* internal_controls;
+    const f64* parameters;
 
-    ControlTrajectory* internal_controls;
-    f64* parameters;
+    Jacobian jac_pattern;
 
     f64 last_t;
 
     FixedVector<f64> sparse_jac;
-    int* i_row;
-    int* j_col;
-    int nnz;
 };
 
 } // namespace Simulation

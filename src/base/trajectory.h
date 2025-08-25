@@ -46,7 +46,7 @@ struct StaticField {
 struct ControlTrajectory {
     std::vector<f64> t;                       // time grid, monotonic increasing
     std::vector<std::vector<f64>> u;          // u[i][j] = value of i-th control at t[j]
-    InterpolationMethod interpolation = InterpolationMethod::LINEAR;
+    mutable InterpolationMethod interpolation = InterpolationMethod::LINEAR;
 
     // optional mesh observer (nullptr if not set)
     std::shared_ptr<const Mesh> inducing_mesh = nullptr;
@@ -74,7 +74,7 @@ struct Trajectory {
     std::vector<std::vector<f64>> x;
     std::vector<std::vector<f64>> u;
     std::vector<f64> p;
-    InterpolationMethod interpolation = InterpolationMethod::LINEAR;
+    mutable InterpolationMethod interpolation = InterpolationMethod::LINEAR;
 
     // optional mesh observer (nullptr if not set)
     std::shared_ptr<const Mesh> inducing_mesh = nullptr;
@@ -127,7 +127,7 @@ struct CostateTrajectory {
     std::vector<std::vector<f64>> costates_f;
     std::vector<std::vector<f64>> costates_g;
     std::vector<f64> costates_r;
-    InterpolationMethod interpolation;
+    mutable InterpolationMethod interpolation;
 
     // optional mesh observer (nullptr if not set)
     std::shared_ptr<const Mesh> inducing_mesh = nullptr;

@@ -42,6 +42,7 @@ target_sources(moo PRIVATE
     src/interfaces/gdopt/generated.c
 
     # Sources to call simulations for C interface
+    src/simulation/integrator/integrator_util.cpp
     src/simulation/integrator/integrator.cpp
     src/simulation/radau/radau_builder.cpp
     src/simulation/radau/radau_integrator.cpp

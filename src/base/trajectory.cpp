@@ -29,7 +29,8 @@ Trajectory Trajectory::interpolate_onto_mesh(const Mesh& mesh) const {
         case InterpolationMethod::POLYNOMIAL:
             return interpolate_onto_mesh_polynomial(mesh);
         default:
-            throw std::runtime_error("Unknown interpolation method!");
+            LOG_ERROR("Unknown interpolation method!");
+            abort();
     }
 }
 
@@ -189,7 +190,8 @@ FixedVector<f64> Trajectory::state_errors_1_norm(const Trajectory& other) const 
 
 FixedVector<f64> Trajectory::state_errors(const Trajectory& other, Linalg::Norm norm) const {
     if (this->t.size() != other.t.size()) {
-        throw std::runtime_error("Time vector size mismatch in Trajectory::state_errors.");
+        LOG_ERROR("Time vector size mismatch in Trajectory::state_errors!");
+        abort();
     }
 
     switch (norm) {
@@ -200,7 +202,8 @@ FixedVector<f64> Trajectory::state_errors(const Trajectory& other, Linalg::Norm 
         case Linalg::Norm::NORM_1:
             return state_errors_1_norm(other);
         default:
-            throw std::runtime_error("Unknown interpolation method!");
+            LOG_ERROR("Unknown interpolation method!");
+            abort();
     }
 }
 
@@ -271,7 +274,7 @@ void ControlTrajectory::interpolate_at_linear(f64 t_query, f64* interpolation_va
         t_idx--;
     }
 
-    // interval [t[i], t[i+1]]
+    // interval [t[t_idx], t[t_idx+1]]
     f64 t1 = t[t_idx];
     f64 t2 = t[t_idx + 1];
     f64 alpha = (t_query - t1) / (t2 - t1);
@@ -342,7 +345,8 @@ void ControlTrajectory::interpolate_at(f64 t_query, f64* interpolation_values) c
             }
             return;
         default:
-            throw std::runtime_error("Unknown interpolation method!");
+            LOG_ERROR("Unknown interpolation method!");
+            abort();
     }
 }
 
@@ -387,7 +391,8 @@ CostateTrajectory CostateTrajectory::interpolate_onto_mesh(const Mesh& mesh) con
                 return interpolate_onto_mesh_polynomial(mesh);
             }
         default:
-            throw std::runtime_error("Unknown interpolation method!");
+            LOG_ERROR("Unknown interpolation method!");
+            abort();
     }
 }
 
@@ -689,7 +694,7 @@ int write_csv(
     std::ofstream file(filename);
     if (!file.is_open()) {
         LOG_ERROR("Could not open file {}", filename);
-        return -1;
+        abort();
     }
 
     file << std::fixed << std::setprecision(std::numeric_limits<double>::max_digits10);
@@ -785,7 +790,7 @@ void read_csv(
     std::ifstream file(filename);
     if (!file.is_open()) {
         LOG_ERROR("Could not open file {}", filename);
-        return;
+        abort();
     }
 
     std::string line;

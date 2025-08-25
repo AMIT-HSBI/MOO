@@ -72,6 +72,16 @@ public:
 
     FixedVector(FixedVector &&other) noexcept = default;
 
+    explicit FixedVector(const std::vector<T>& vec)
+    : FixedVector(vec.size())
+    {
+        if constexpr (std::is_trivially_copyable_v<T>) {
+            std::memcpy(_data.get(), vec.data(), _size * sizeof(T));
+        } else {
+            std::copy(vec.begin(), vec.end(), _data.get());
+        }
+    }
+
     // assign based on iterator begin() and end(), guard only iterator
     template<typename It, std::enable_if_t<is_iterator_v<It>, int> = 0>
     constexpr FixedVector(It first, It last) : FixedVector(static_cast<std::size_t>(std::distance(first, last))) {
@@ -114,6 +124,10 @@ public:
     // fill entire vector with 0
     constexpr void fill_zero() {
         std::memset(_data.get(), 0, _size * sizeof(T));
+    }
+
+    constexpr void fill(const T& value) {
+        std::fill(_data.get(), _data.get() + _size, value);
     }
 
     // fills the vector with some data of the same len

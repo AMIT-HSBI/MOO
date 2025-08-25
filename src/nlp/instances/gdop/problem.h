@@ -29,6 +29,8 @@
 #include <base/mesh.h>
 #include <base/log.h>
 
+#include <simulation/integrator/integrator_util.h>
+
 namespace GDOP {
 
 struct ProblemConstants {
@@ -294,14 +296,38 @@ private:
     BoundarySweepBuffers buffers;
 };
 
+// used for simulations only (optional)
+// implementation gives access to a default simulation (see src/simulation/)
+class Dynamics {
+public:
+    Dynamics(const ProblemConstants& pc_in,
+             ::Simulation::Jacobian jac_pattern = ::Simulation::Jacobian::dense())
+    : pc(pc_in),
+      jac_pattern(jac_pattern) {}
+
+    virtual ~Dynamics() = default;
+
+    virtual void eval(const f64* x, const f64* u, const f64* p, f64 t, f64* f, void* user_data) { LOG_ERROR("Dynamics evaluation not implemented: use different simulation option."); abort(); }
+    virtual void jac(const f64* x, const f64* u, const f64* p, f64 t, f64* dfdx, void* user_data) { LOG_ERROR("Dynamics Jacobian not implemented: use different simulation option."); abort(); }
+
+    const ProblemConstants& pc;
+    ::Simulation::Jacobian jac_pattern;
+};
+
 class Problem {
 public:
-    Problem(std::unique_ptr<FullSweep>&& full, std::unique_ptr<BoundarySweep>&& boundary, std::unique_ptr<ProblemConstants>&& pc)
-    : full(std::move(full)), boundary(std::move(boundary)), pc(std::move(pc)) {
-    };
+    Problem(std::unique_ptr<FullSweep>&& full,
+            std::unique_ptr<BoundarySweep>&& boundary,
+            std::unique_ptr<ProblemConstants>&& pc,
+            std::unique_ptr<Dynamics>&& dynamics = nullptr)
+    : full(std::move(full)),
+      boundary(std::move(boundary)),
+      dynamics(std::move(dynamics)),
+      pc(std::move(pc)) {};
 
     std::unique_ptr<FullSweep> full;
     std::unique_ptr<BoundarySweep> boundary;
+    std::unique_ptr<Dynamics> dynamics;
     std::unique_ptr<ProblemConstants> pc;
 
     // FIXME: TODO: get rid of int where possible: below could actually overflow with decent hardware!

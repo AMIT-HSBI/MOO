@@ -32,8 +32,16 @@ class IntegratorBuilder {
 public:
     virtual ~IntegratorBuilder() = default;
 
-    IntegratorBuilder(ODEFunction ode_func_, f64* x_start_values_, int x_size_)
-        : ode_func(ode_func_), x_start_values(x_start_values_), x_size(x_size_) {}
+    BuilderImpl& states(f64* x_start_values_, int x_size_) {
+        x_start_values = x_start_values_;
+        x_size = x_size_;
+        return static_cast<BuilderImpl&>(*this);
+    }
+
+    BuilderImpl& ode(ODEFunction ode_func_) {
+        ode_func = ode_func_;
+        return static_cast<BuilderImpl&>(*this);
+    }
 
     BuilderImpl& interval(f64 t0_, f64 tf_, int steps_) {
         if (steps_ <= 0 || tf_ <= t0_) LOG_ERROR("Invalid interval");
@@ -59,34 +67,28 @@ public:
         return static_cast<BuilderImpl&>(*this);
     }
 
-    BuilderImpl& params(f64* parameters_, int p_size_) {
+    BuilderImpl& params(const f64* parameters_, int p_size_) {
         parameters = parameters_;
         p_size = p_size_;
         return static_cast<BuilderImpl&>(*this);
     }
 
-    BuilderImpl& control(ControlTrajectory* controls_) {
+    BuilderImpl& control(const ControlTrajectory* controls_) {
         controls = controls_;
         return static_cast<BuilderImpl&>(*this);
     }
 
     BuilderImpl& jacobian(JacobianFunction jac_func_,
-                          JacobianFormat jac_fmt_,
-                          int* i_row_ = nullptr,
-                          int* j_col_ = nullptr,
-                          int nnz_ = 0) {
+                          Jacobian jac_pattern_) {
         jac_func = jac_func_;
-        jac_fmt = jac_fmt_;
-        i_row = i_row_;
-        j_col = j_col_;
-        nnz = nnz_;
+        jac_pattern = jac_pattern_;
         return static_cast<BuilderImpl&>(*this);
     }
 
     virtual IntegratorImpl build() const = 0;
 
 protected:
-    ODEFunction ode_func;
+    ODEFunction ode_func = nullptr;
     f64* x_start_values = nullptr;
     int x_size = 0;
 
@@ -97,16 +99,13 @@ protected:
     int num_steps = 1;
 
     void* user_data = nullptr;
-    f64* parameters = nullptr;
+    const f64* parameters = nullptr;
     int p_size = 0;
 
-    ControlTrajectory* controls = nullptr;
+    const ControlTrajectory* controls = nullptr;
 
     JacobianFunction jac_func = nullptr;
-    JacobianFormat jac_fmt = JacobianFormat::DENSE;
-    int* i_row = nullptr;
-    int* j_col = nullptr;
-    int nnz = 0;
+    Jacobian jac_pattern = Jacobian::dense();
 };
 
 } // namespace Simulation

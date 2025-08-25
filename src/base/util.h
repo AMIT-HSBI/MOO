@@ -31,9 +31,13 @@
 /* simple typedef for the Number, for using f32 or something later */
 typedef double f64;
 
-const f64 PLUS_INFINITY = std::numeric_limits<f64>::infinity();
-const f64 MINUS_INFINITY = -std::numeric_limits<f64>::infinity();
+/* max f64 == _DBL_MAX_  */
+const f64 PLUS_INFINITY = std::numeric_limits<f64>::max();
 
+/* min f64 == -_DBL_MAX_ */
+const f64 MINUS_INFINITY = -std::numeric_limits<f64>::max();
+
+/* max size_t */
 const size_t MAX_SIZE = std::numeric_limits<size_t>::max();
 
 template <typename T>

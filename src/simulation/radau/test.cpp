@@ -26,20 +26,18 @@
 
 namespace Simulation {
 
-void fcn(f64 t, const f64* x, const f64* u, const f64* p, f64* dxdt, void* user_data) {
+void fcn(const f64* x, const f64* u, const f64* p, f64 t, f64* dxdt, void* user_data) {
     dxdt[0] = -x[0];
     dxdt[1] = x[0] - 2 * x[1] * p[1] + p[0];
 }
 
-void jac(f64 t, const f64* x, const f64* u, const f64* p, f64* J, void* user_data) {
+void jac(const f64* x, const f64* u, const f64* p, f64 t, f64* J, void* user_data) {
     J[0] = -1.0;
     J[1] = 1.0;
     J[2] = -2 * p[1];
 }
 
 int radau_wrapper_test() {
-    FixedTableFormat<4> table_format = {{12, 22, 22, 16}, {Align::Center, Align::Center, Align::Center, Align::Center}};
-
     f64 x_start[2] = {1, -1};
 
     auto dummy_control = ControlTrajectory{{0, 1}, {{-1, 1}}};
@@ -48,23 +46,25 @@ int radau_wrapper_test() {
     int row[] = { 0, 1, 1 };
     int col[] = { 0, 0, 1 };
 
+    Jacobian jac_pattern = Jacobian::sparse(JacobianFormat::COO, row, col, nnz);
+
     f64 parameters[] = { -1.0, 1.0 };
 
-    auto radau_integrator = RadauBuilder(fcn, x_start, 2)
-                                        .control(&dummy_control)
-                                        .params(parameters, 2)
-                                        .jacobian(jac, JacobianFormat::COO, row, col, nnz)
-                                        .interval(0, 1, 10)
-                                        .radau_scheme(RadauScheme::ADAPTIVE)
-                                        .radau_h0(1e-5)
-                                        .radau_tol(1e-12, 1e-12)
-                                        .build();
+    auto radau_integrator = RadauBuilder()
+                                .ode(fcn)
+                                .states(x_start, 2)
+                                .control(&dummy_control)
+                                .params(parameters, 2)
+                                .jacobian(jac, jac_pattern)
+                                .interval(0, 1, 10)
+                                .radau_scheme(RadauScheme::ADAPTIVE)
+                                .radau_h0(1e-5)
+                                .radau_tol(1e-12, 1e-12)
+                                .build();
 
     auto out = radau_integrator.simulate();
 
     out->print_table();
-
-    LOG_SUCCESS("RADAU finished successfully with return code {}", radau_integrator.return_code);
 
     return radau_integrator.return_code;
 }

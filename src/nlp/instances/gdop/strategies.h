@@ -23,9 +23,12 @@
 
 #include <functional>
 #include <memory>
+
+#include <base/log.h>
 #include <base/trajectory.h>
 #include <nlp/nlp.h>
-#include <base/log.h>
+#include <nlp/instances/gdop/problem.h>
+#include <simulation/radau/radau_builder.h>
 
 // Strategies define interchangeable behaviors for key stages such as initialization, simulation,
 // mesh refinement, result emission, and optimality verification in the GDOP optimization process.
@@ -89,7 +92,8 @@ public:
  */
 class Simulation {
 public:
-    virtual std::unique_ptr<Trajectory> operator()(const ControlTrajectory& controls, int num_steps, f64 start_time, f64 stop_time, f64* x_start_values) = 0;
+    virtual std::unique_ptr<Trajectory> operator()(const ControlTrajectory& controls, const FixedVector<f64>& parameters,
+                                                   int num_steps, f64 start_time, f64 stop_time, f64* x_start_values) = 0;
     virtual ~Simulation() = default;
 };
 
@@ -106,7 +110,8 @@ public:
  */
 class SimulationStep {
 public:
-    virtual std::unique_ptr<Trajectory> operator()(const ControlTrajectory& controls, f64 start_time, f64 stop_time, f64* x_start_values) = 0;
+    virtual std::unique_ptr<Trajectory> operator()(const ControlTrajectory& controls, const FixedVector<f64>& parameters,
+                                                   f64 start_time, f64 stop_time, f64* x_start_values) = 0;
     virtual ~SimulationStep() = default;
 };
 
@@ -136,6 +141,8 @@ public:
                                         const std::vector<f64>& values) = 0;
     virtual ~Interpolation() = default;
 };
+
+// TODO: add printout to stdout as emitter
 
 /**
  * @brief Strategy for emitting output, such as writing CSV, MAT files or logging.
@@ -186,12 +193,14 @@ public:
 
 class NoSimulation : public Simulation {
 public:
-    std::unique_ptr<Trajectory> operator()(const ControlTrajectory& controls, int num_steps, f64 start_time, f64 stop_time, f64* x_start_values) override;
+    std::unique_ptr<Trajectory> operator()(const ControlTrajectory& controls, const FixedVector<f64>& parameters,
+                                           int num_steps, f64 start_time, f64 stop_time, f64* x_start_values) override;
 };
 
 class NoSimulationStep : public SimulationStep {
 public:
-    std::unique_ptr<Trajectory> operator()(const ControlTrajectory& controls, f64 start_time, f64 stop_time, f64* x_start_values) override;
+    std::unique_ptr<Trajectory> operator()(const ControlTrajectory& controls, const FixedVector<f64>& parameters,
+                                           f64 start_time, f64 stop_time, f64* x_start_values) override;
 };
 
 class NoMeshRefinement : public MeshRefinement {
@@ -247,6 +256,26 @@ public:
 };
 
 // ==================== more advanced Strategies ====================
+
+// TODO: make *generic* IntegratorSimulation : public Simulation, which accepts a base, minimal integrator (or builder), finishes it
+//       and can call the simulation (for now this isnt possible as the passed IntegratorBuilder has tpl args)
+
+class RadauIntegratorSimulation : public Simulation {
+public:
+    RadauIntegratorSimulation(Dynamics& dynamics);
+
+    std::unique_ptr<Trajectory> operator()(const ControlTrajectory& controls, const FixedVector<f64>& parameters,
+                                           int num_steps, f64 start_time, f64 stop_time, f64* x_start_values) override;
+
+private:
+    Dynamics& dynamics;
+};
+
+class RadauIntegratorSimulationStep : public SimulationStep {
+public:
+    std::unique_ptr<Trajectory> operator()(const ControlTrajectory& controls, const FixedVector<f64>& parameters,
+                                           f64 start_time, f64 stop_time, f64* x_start_values) override;
+};
 
 // -- uses fLGR scheme to interpolate States and Controls --
 class PolynomialInterpolation : public Interpolation {
@@ -348,12 +377,14 @@ public:
         return (*refined_initialization)(old_mesh, new_mesh, trajectory);
     }
 
-    auto simulate(const ControlTrajectory& controls, int num_steps, f64 start_time, f64 stop_time, f64* x_start_values) {
-        return (*simulation)(controls, num_steps, start_time, stop_time, x_start_values);
+    auto simulate(const ControlTrajectory& controls, const FixedVector<f64>& parameters,
+                  int num_steps, f64 start_time, f64 stop_time, f64* x_start_values) {
+        return (*simulation)(controls, parameters, num_steps, start_time, stop_time, x_start_values);
     }
 
-    auto simulate_step(const ControlTrajectory& controls, f64 start_time, f64 stop_time, f64* x_start_values) {
-        return (*simulation_step)(controls, start_time, stop_time, x_start_values);
+    auto simulate_step(const ControlTrajectory& controls, const FixedVector<f64>& parameters,
+                       f64 start_time, f64 stop_time, f64* x_start_values) {
+        return (*simulation_step)(controls, parameters, start_time, stop_time, x_start_values);
     }
 
     auto detect(const Mesh& mesh, const PrimalDualTrajectory& trajectory) {
