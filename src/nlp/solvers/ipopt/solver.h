@@ -24,12 +24,13 @@
 #include <memory>
 
 #include <nlp/nlp_solver.h>
+#include <base/export.h>
 
 namespace IpoptSolver {
 
 struct IpoptSolverData;
 
-class IpoptSolver : public NLP::NLPSolver {
+class MOO_EXPORT IpoptSolver : public NLP::NLPSolver {
 public:
     IpoptSolver(NLP::NLP& nlp, NLP::NLPSolverSettings& solver_settings);
 

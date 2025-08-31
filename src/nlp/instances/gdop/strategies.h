@@ -27,8 +27,9 @@
 #include <base/log.h>
 #include <base/trajectory.h>
 #include <nlp/nlp.h>
+#include <base/export.h>
+
 #include <nlp/instances/gdop/problem.h>
-#include <simulation/radau/radau_builder.h>
 
 // Strategies define interchangeable behaviors for key stages such as initialization, simulation,
 // mesh refinement, result emission, and optimality verification in the GDOP optimization process.
@@ -51,7 +52,7 @@ class GDOP;
  * @param gdop Optimization problem (read-only).
  * @return A unique_ptr to a PrimalDualTrajectory object representing the initial state guess.
  */
-class Initialization {
+class MOO_EXPORT Initialization {
 public:
     virtual std::unique_ptr<PrimalDualTrajectory> operator()(const GDOP& gdop) = 0; 
     virtual ~Initialization() = default;
@@ -72,7 +73,7 @@ public:
  * @param trajectory Optimal trajectory on old_mesh
  * @return A unique_ptr to a PrimalDualTrajectory object representing the new, interpolated guess.
  */
-class RefinedInitialization {
+class MOO_EXPORT RefinedInitialization {
 public:
     virtual std::unique_ptr<PrimalDualTrajectory> operator()(const Mesh& old_mesh,
                                                              const Mesh& new_mesh,
@@ -90,7 +91,7 @@ public:
  * @param x_start_values Initial state values at start_time.
  * @return A unique_ptr to a Trajectory representing result file of the simulation.
  */
-class Simulation {
+class MOO_EXPORT Simulation {
 public:
     virtual std::unique_ptr<Trajectory> operator()(const ControlTrajectory& controls, const FixedVector<f64>& parameters,
                                                    int num_steps, f64 start_time, f64 stop_time, f64* x_start_values) = 0;
@@ -108,7 +109,7 @@ public:
  * @param x_start_values Initial state at start_time.
  * @return A unique_ptr to the resulting trajectory segment.
  */
-class SimulationStep {
+class MOO_EXPORT SimulationStep {
 public:
     virtual std::unique_ptr<Trajectory> operator()(const ControlTrajectory& controls, const FixedVector<f64>& parameters,
                                                    f64 start_time, f64 stop_time, f64* x_start_values) = 0;
@@ -118,7 +119,7 @@ public:
 /**
  * @brief Strategy for refining the mesh points and polynomial degrees.
  */
-class MeshRefinement {
+class MOO_EXPORT MeshRefinement {
 public:
     virtual void reset(const GDOP& gdop) = 0;
     virtual std::unique_ptr<MeshUpdate> operator()(const Mesh& mesh,
@@ -134,7 +135,7 @@ public:
  * @param trajectory Trajectory to interpolate.
  * @return A unique_ptr to the resulting interpolated trajectory.
  */
-class Interpolation {
+class MOO_EXPORT Interpolation {
 public:
     virtual std::vector<f64> operator()(const Mesh& old_mesh,
                                         const Mesh& new_mesh,
@@ -153,7 +154,7 @@ public:
  * @param trajectory Final trajectory.
  * @return 0 on success, nonzero on failure.
  */
-class Emitter {
+class MOO_EXPORT Emitter {
 public:
     virtual int operator()(const Trajectory& trajectory) = 0;
     virtual ~Emitter() = default;
@@ -166,7 +167,7 @@ public:
  * @param trajectory Final trajectory.
  * @return true if verified successfully, false otherwise.
  */
-class Verifier {
+class MOO_EXPORT Verifier {
 public:
     virtual bool operator()(const GDOP& gdop, const PrimalDualTrajectory& trajectory) = 0;
     virtual ~Verifier() = default;
@@ -183,7 +184,7 @@ public:
  * @param gdop Optimization problem.
  * @return A shared pointer to the created `NLP::Scaling` object.
  */
-class ScalingFactory {
+class MOO_EXPORT ScalingFactory {
 public:
     virtual std::shared_ptr<NLP::Scaling> operator()(const GDOP& gdop) = 0;
     virtual ~ScalingFactory() = default;
@@ -191,32 +192,32 @@ public:
 
 // ====================  Strategy implementations ====================
 
-class NoSimulation : public Simulation {
+class MOO_EXPORT NoSimulation : public Simulation {
 public:
     std::unique_ptr<Trajectory> operator()(const ControlTrajectory& controls, const FixedVector<f64>& parameters,
                                            int num_steps, f64 start_time, f64 stop_time, f64* x_start_values) override;
 };
 
-class NoSimulationStep : public SimulationStep {
+class MOO_EXPORT NoSimulationStep : public SimulationStep {
 public:
     std::unique_ptr<Trajectory> operator()(const ControlTrajectory& controls, const FixedVector<f64>& parameters,
                                            f64 start_time, f64 stop_time, f64* x_start_values) override;
 };
 
-class NoMeshRefinement : public MeshRefinement {
+class MOO_EXPORT NoMeshRefinement : public MeshRefinement {
 public:
     void reset(const GDOP& gdop) override;
     std::unique_ptr<MeshUpdate> operator()(const Mesh& mesh, const PrimalDualTrajectory& trajectory) override;
 };
 
-class LinearInterpolation : public Interpolation {
+class MOO_EXPORT LinearInterpolation : public Interpolation {
 public:
     std::vector<f64> operator()(const Mesh& old_mesh,
                                 const Mesh& new_mesh,
                                 const std::vector<f64>& values) override;
 };
 
-class InterpolationRefinedInitialization : public RefinedInitialization {
+class MOO_EXPORT InterpolationRefinedInitialization : public RefinedInitialization {
 public:
     std::shared_ptr<Interpolation> interpolation;
     bool interpolate_primals;
@@ -233,24 +234,24 @@ public:
                                                      const PrimalDualTrajectory& trajectory) override;
 };
 
-class NoEmitter : public Emitter {
+class MOO_EXPORT NoEmitter : public Emitter {
 public:
     int operator()(const Trajectory& trajectory) override;
 };
 
-class NoVerifier : public Verifier {
+class MOO_EXPORT NoVerifier : public Verifier {
 public:
     bool operator()(const GDOP& gdop, const PrimalDualTrajectory& trajectory) override;
 };
 
 // -- simple default scaling (no scaling) --
-class NoScalingFactory : public ScalingFactory {
+class MOO_EXPORT NoScalingFactory : public ScalingFactory {
 public:
     std::shared_ptr<NLP::Scaling> operator()(const GDOP& gdop) override;
 };
 
 // -- simple default initialization (checks bounds and chooses initial value depending on that) --
-class ConstantInitialization : public Initialization {
+class MOO_EXPORT ConstantInitialization : public Initialization {
 public:
     std::unique_ptr<PrimalDualTrajectory> operator()(const GDOP& gdop) override;
 };
@@ -260,7 +261,7 @@ public:
 // TODO: make *generic* IntegratorSimulation : public Simulation, which accepts a base, minimal integrator (or builder), finishes it
 //       and can call the simulation (for now this isnt possible as the passed IntegratorBuilder has tpl args)
 
-class RadauIntegratorSimulation : public Simulation {
+class MOO_EXPORT RadauIntegratorSimulation : public Simulation {
 public:
     RadauIntegratorSimulation(Dynamics& dynamics);
 
@@ -271,14 +272,14 @@ private:
     Dynamics& dynamics;
 };
 
-class RadauIntegratorSimulationStep : public SimulationStep {
+class MOO_EXPORT RadauIntegratorSimulationStep : public SimulationStep {
 public:
     std::unique_ptr<Trajectory> operator()(const ControlTrajectory& controls, const FixedVector<f64>& parameters,
                                            f64 start_time, f64 stop_time, f64* x_start_values) override;
 };
 
 // -- uses fLGR scheme to interpolate States and Controls --
-class PolynomialInterpolation : public Interpolation {
+class MOO_EXPORT PolynomialInterpolation : public Interpolation {
 public:
     std::vector<f64> operator()(const Mesh& old_mesh,
                                 const Mesh& new_mesh,
@@ -286,7 +287,7 @@ public:
 };
 
 // -- combined Strategy (simple Initialization, extract Controls, simulate) --
-class SimulationInitialization : public Initialization {
+class MOO_EXPORT SimulationInitialization : public Initialization {
 public:
     std::shared_ptr<Initialization> initialization;
     std::shared_ptr<Simulation>     simulation;
@@ -297,7 +298,7 @@ public:
 };
 
 // -- L2-Boundary-Norm Mesh Refinement Strategy --
-class L2BoundaryNorm : public MeshRefinement {
+class MOO_EXPORT L2BoundaryNorm : public MeshRefinement {
 public:
     int phase_one_iteration;
     int phase_two_iteration;
@@ -320,7 +321,7 @@ public:
 };
 
 // -- emit optimal solution to csv --
-class CSVEmitter : public Emitter {
+class MOO_EXPORT CSVEmitter : public Emitter {
 public:
     std::string filename;
 
@@ -330,7 +331,7 @@ public:
 };
 
 // -- verify optimality by full simulation and state comparison with given norm --
-class SimulationVerifier : public Verifier {
+class MOO_EXPORT SimulationVerifier : public Verifier {
 public:
     std::shared_ptr<Simulation> simulation;
     Linalg::Norm norm;
@@ -348,12 +349,12 @@ public:
 /**
  * @brief Aggregates all strategy components into a single object.
  *
- * This class holds shared pointers to each pluggable strategy interface:
+ * This class MOO_EXPORT holds shared pointers to each pluggable strategy interface:
  * initialization, simulation, mesh refinement, emission, verification, scaling ...
  *
  * You can provide your own strategy objects or use the defaults via `default_strategies()`.
  */
-class Strategies {
+class MOO_EXPORT Strategies {
 public:
     std::shared_ptr<Initialization>        initialization;
     std::shared_ptr<RefinedInitialization> refined_initialization;

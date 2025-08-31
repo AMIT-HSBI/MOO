@@ -18,15 +18,21 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef MOO_RADAU_WRAPPER_TEST_H
-#define MOO_RADAU_WRAPPER_TEST_H
+#ifndef MOO_EXPORT_H
+#define MOO_EXPORT_H
 
-#include <base/export.h>
+#if defined(_WIN32) || defined(__CYGWIN__)
+  #if defined(MOO_DLL_EXPORT)
+    #define MOO_EXPORT __declspec(dllexport)
+  #else
+    #define MOO_EXPORT __declspec(dllimport)
+  #endif
+#else
+  #if __GNUC__ >= 4
+    #define MOO_EXPORT __attribute__((visibility("default")))
+  #else
+    #define MOO_EXPORT
+  #endif
+#endif
 
-namespace Simulation {
-
-MOO_EXPORT int radau_wrapper_test();
-
-} // namespace Simulation
-
-#endif // MOO_RADAU_WRAPPER_TEST_H
+#endif // MOO_EXPORT_H

@@ -18,8 +18,9 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#include "strategies.h"
-#include "gdop.h"
+#include <nlp/instances/gdop/strategies.h>
+#include <nlp/instances/gdop/gdop.h>
+#include <simulation/radau/radau_builder.h>
 
 // TODO: add doxygen everywhere
 

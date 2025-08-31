@@ -22,6 +22,7 @@
 #include <cmath>
 
 #include <simulation/radau/radau_builder.h>
+#include <simulation/radau/test.h>
 #include <base/log.h>
 
 namespace Simulation {

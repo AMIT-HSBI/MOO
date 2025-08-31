@@ -33,6 +33,8 @@
 #include <vector>
 #include <array>
 
+#include <base/export.h>
+
 // ---------------------------
 // General Log Macros
 // ---------------------------
@@ -72,7 +74,7 @@ constexpr const char* align_to_char(Align a) {
 }
 
 template <size_t N>
-struct FixedTableFormat {
+struct MOO_EXPORT FixedTableFormat {
     std::array<int, N> col_widths;
     std::array<std::string, N> fmt_strings;
 

@@ -28,6 +28,8 @@
 #include <base/fixed_vector.h>
 #include <base/nlp_structs.h>
 #include <base/log.h>
+#include <base/export.h>
+
 
 enum class BlockType {
     Exact,
@@ -35,7 +37,7 @@ enum class BlockType {
     RowOffset,
 };
 
-struct BlockSparsity {
+struct MOO_EXPORT BlockSparsity {
     // use traditional C-like struct with type, because the polymorphism is very simple
     BlockType type;
 
@@ -150,7 +152,7 @@ struct BlockSparsity {
     }
 };
 
-struct OrderedIndexSet {
+struct MOO_EXPORT OrderedIndexSet {
     struct Compare {
         bool operator()(const std::pair<int, int>& a, const std::pair<int, int>& b) const {
             if (a.first != b.first) {
