@@ -18,7 +18,7 @@ jobs:
           - { c: "clang", cxx: "clang++", fortran: "gfortran", generator: "Ninja"}
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
 

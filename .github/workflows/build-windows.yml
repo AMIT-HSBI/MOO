@@ -17,7 +17,7 @@ jobs:
           - { c: "gcc", cxx: "g++", fortran: "gfortran", generator: "MSYS Makefiles" }
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
 
