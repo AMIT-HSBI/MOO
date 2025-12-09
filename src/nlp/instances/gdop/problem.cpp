@@ -28,8 +28,8 @@ ProblemConstants::ProblemConstants(bool has_mayer,
                                    FixedVector<Bounds>&& u_bounds,
                                    FixedVector<Bounds>&& p_bounds,
                                    std::array<Bounds, 2> T_bounds,
-                                   FixedVector<std::optional<f64>> x0_fixed,
-                                   FixedVector<std::optional<f64>> xf_fixed,
+                                   FixedVector<std::optional<f64>> xu0_fixed,
+                                   FixedVector<std::optional<f64>> xuf_fixed,
                                    std::array<std::optional<f64>, 2> T_fixed,
                                    FixedVector<Bounds>&& r_bounds,
                                    FixedVector<Bounds>&& g_bounds,
@@ -48,8 +48,8 @@ ProblemConstants::ProblemConstants(bool has_mayer,
   u_bounds(std::move(u_bounds)),
   p_bounds(std::move(p_bounds)),
   T_bounds(std::move(T_bounds)),
-  x0_fixed(std::move(x0_fixed)),
-  xf_fixed(std::move(xf_fixed)),
+  xu0_fixed(std::move(xu0_fixed)),
+  xuf_fixed(std::move(xuf_fixed)),
   T_fixed(std::move(T_fixed)),
   free_time(!(T_fixed[0] && T_fixed[1])),
   r_bounds(std::move(r_bounds)),
@@ -173,6 +173,84 @@ void FullSweep::print_jacobian_sparsity_pattern() {
     Log::info("");
 }
 
+void FullSweep::print_flat_jacobian_sparsity_pattern() {
+    int nnz = layout.compute_jac_nnz();
+
+    FixedVector<int> rows(nnz);
+    FixedVector<int> cols(nnz);
+
+    int nz = 0;
+
+    if (layout.L) {
+        int row = 0;
+
+        for (const auto& entry : layout.L->jac.dx) {
+            rows[nz] = row;
+            cols[nz++] = entry.col;
+        }
+        for (const auto& entry : layout.L->jac.du) {
+            rows[nz] = row;
+            cols[nz++] = entry.col + pc.x_size;
+        }
+        for (const auto& entry : layout.L->jac.dp) {
+            rows[nz] = row;
+            cols[nz++] = entry.col + pc.x_size + pc.u_size;
+        }
+    }
+
+    for (size_t f = 0; f < layout.f.size(); f++) {
+        const auto& current_f = layout.f[f];
+
+        int row = (layout.L ? 1 : 0) + f;
+
+        for (const auto& entry : current_f.jac.dx) {
+            rows[nz] = row;
+            cols[nz++] = entry.col;
+        }
+        for (const auto& entry : current_f.jac.du) {
+            rows[nz] = row;
+            cols[nz++] = entry.col + pc.x_size;
+        }
+        for (const auto& entry : current_f.jac.dp) {
+            rows[nz] = row;
+            cols[nz++] = entry.col + pc.x_size + pc.u_size;
+        }
+    }
+
+    for (size_t g = 0; g < layout.g.size(); g++) {
+        const auto& current_g = layout.g[g];
+
+        int row = (layout.L ? 1 : 0) + layout.f.size() + g;
+
+        for (const auto& entry : current_g.jac.dx) {
+            rows[nz] = row;
+            cols[nz++] = entry.col;
+        }
+        for (const auto& entry : current_g.jac.du) {
+            rows[nz] = row;
+            cols[nz++] = entry.col + pc.x_size;
+        }
+        for (const auto& entry : current_g.jac.dp) {
+            rows[nz] = row;
+            cols[nz++] = entry.col + pc.x_size + pc.u_size;
+        }
+    }
+
+    FixedTableFormat<2> table_format = {{18, 18}, {Align::Center, Align::Center}};
+
+    Log::start_module(table_format, "FullSweep (LFG) - Flattened COO Jacobian Sparsity");
+    Log::row(table_format, "Function (row)", "Flat Variable (col)");
+    Log::dashes(table_format);
+
+    for (int i = 0; i < nnz; i++) {
+        Log::row(table_format, rows[i], cols[i]);
+    }
+
+    Log::dashes(table_format);
+    Log::info("");
+}
+
+
 void BoundarySweep::print_jacobian_sparsity_pattern() {
     FixedTableFormat<4> table_format = {{18, 15, 16, 14}, {Align::Center, Align::Center, Align::Center, Align::Center}};
 
@@ -184,8 +262,14 @@ void BoundarySweep::print_jacobian_sparsity_pattern() {
         for (const auto& entry : layout.M->jac.dx0) {
             Log::row(table_format, "Mayer - M", "dx0", entry.col, entry.buf_index);
         }
+        for (const auto& entry : layout.M->jac.du0) {
+            Log::row(table_format, "Mayer - M", "du0", entry.col, entry.buf_index);
+        }
         for (const auto& entry : layout.M->jac.dxf) {
             Log::row(table_format, "Mayer - M", "dxf", entry.col, entry.buf_index);
+        }
+        for (const auto& entry : layout.M->jac.duf) {
+            Log::row(table_format, "Mayer - M", "duf", entry.col, entry.buf_index);
         }
         for (const auto& entry : layout.M->jac.dp) {
             Log::row(table_format, "Mayer - M", "dp", entry.col, entry.buf_index);
@@ -202,8 +286,14 @@ void BoundarySweep::print_jacobian_sparsity_pattern() {
         for (const auto& entry : current_r.jac.dx0) {
             Log::row(table_format, fmt::format("Boundary - r[{}]", r), "dx0", entry.col, entry.buf_index);
         }
+        for (const auto& entry : current_r.jac.du0) {
+            Log::row(table_format, fmt::format("Boundary - r[{}]", r), "du0", entry.col, entry.buf_index);
+        }
         for (const auto& entry : current_r.jac.dxf) {
             Log::row(table_format, fmt::format("Boundary - r[{}]", r), "dxf", entry.col, entry.buf_index);
+        }
+        for (const auto& entry : current_r.jac.duf) {
+            Log::row(table_format, fmt::format("Boundary - r[{}]", r), "duf", entry.col, entry.buf_index);
         }
         for (const auto& entry : current_r.jac.dp) {
             Log::row(table_format, fmt::format("Boundary - r[{}]", r), "dp", entry.col, entry.buf_index);
@@ -213,6 +303,85 @@ void BoundarySweep::print_jacobian_sparsity_pattern() {
         }
         Log::dashes(table_format);
     }
+    Log::info("");
+}
+
+void BoundarySweep::print_flat_jacobian_sparsity_pattern() {
+    int nnz = layout.compute_jac_nnz();
+
+    FixedVector<int> rows(nnz);
+    FixedVector<int> cols(nnz);
+
+    int nz = 0;
+
+    if (layout.M) {
+        for (const auto& entry : layout.M->jac.dx0) {
+            rows[nz] = 0;
+            cols[nz++] = entry.col;
+        }
+        for (const auto& entry : layout.M->jac.du0) {
+            rows[nz] = 0;
+            cols[nz++] = entry.col + pc.x_size;
+        }
+        for (const auto& entry : layout.M->jac.dxf) {
+            rows[nz] = 0;
+            cols[nz++] = entry.col + pc.x_size + pc.u_size;
+        }
+        for (const auto& entry : layout.M->jac.duf) {
+            rows[nz] = 0;
+            cols[nz++] = entry.col + 2 * pc.x_size + pc.u_size;
+        }
+        for (const auto& entry : layout.M->jac.dp) {
+            rows[nz] = 0;
+            cols[nz++] = entry.col + 2 * pc.x_size + 2 * pc.u_size;
+        }
+        for (const auto& entry : layout.M->jac.dT) {
+            rows[nz] = 0;
+            cols[nz++] = entry.col + 2 * pc.x_size + 2 * pc.u_size + pc.p_size;
+        }
+    }
+
+    for (size_t r = 0; r < layout.r.size(); r++) {
+        const auto& current_r = layout.r[r];
+        int row = (layout.M ? 1 : 0) + r;
+
+        for (const auto& entry : current_r.jac.dx0) {
+            rows[nz] = row;
+            cols[nz++] = entry.col;
+        }
+        for (const auto& entry : current_r.jac.du0) {
+            rows[nz] = row;
+            cols[nz++] = entry.col + pc.x_size;
+        }
+        for (const auto& entry : current_r.jac.dxf) {
+            rows[nz] = row;
+            cols[nz++] = entry.col + pc.x_size + pc.u_size;
+        }
+        for (const auto& entry : current_r.jac.duf) {
+            rows[nz] = row;
+            cols[nz++] = entry.col + 2 * pc.x_size + pc.u_size;
+        }
+        for (const auto& entry : current_r.jac.dp) {
+            rows[nz] = row;
+            cols[nz++] = entry.col + 2 * pc.x_size + 2 * pc.u_size;
+        }
+        for (const auto& entry : current_r.jac.dT) {
+            rows[nz] = row;
+            cols[nz++] = entry.col + 2 * pc.x_size + 2 * pc.u_size + pc.p_size;
+        }
+    }
+
+    FixedTableFormat<2> table_format = {{18, 18}, {Align::Center, Align::Center}};
+
+    Log::start_module(table_format, "BoundarySweep (MR) - Flattened COO Jacobian Sparsity");
+    Log::row(table_format, "Function (row)", "Flat Variable (col)");
+    Log::dashes(table_format);
+
+    for (int i = 0; i < nnz; i++) {
+        Log::row(table_format, rows[i], cols[i]);
+    }
+    Log::dashes(table_format);
+
     Log::info("");
 }
 

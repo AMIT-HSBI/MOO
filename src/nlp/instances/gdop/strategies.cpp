@@ -94,8 +94,8 @@ std::unique_ptr<PrimalDualTrajectory> ConstantInitialization::operator()(const G
 
     // fill state guesses
     for (int x = 0; x < x_size; x++) {
-        auto x0_opt = problem.pc->x0_fixed[x];
-        auto xf_opt = problem.pc->xf_fixed[x];
+        auto x0_opt = problem.pc->xu0_fixed[x];
+        auto xf_opt = problem.pc->xuf_fixed[x];
 
         if (x0_opt && xf_opt) {
             // initial and final fixed: linear interpolation
@@ -118,11 +118,26 @@ std::unique_ptr<PrimalDualTrajectory> ConstantInitialization::operator()(const G
 
     // fill control guesses: use midpoint of bounds or zero
     for (int u = 0; u < u_size; u++) {
-        f64 val = 0.0;
-        if (problem.pc->u_bounds[u].has_lower() && problem.pc->u_bounds[u].has_upper()) {
-            val = 0.5 * (problem.pc->u_bounds[u].lb + problem.pc->u_bounds[u].ub);
+        auto u0_opt = problem.pc->xu0_fixed[x_size + u];
+        auto uf_opt = problem.pc->xuf_fixed[x_size + u];
+
+        if (u0_opt && uf_opt) {
+            // initial and final fixed: linear interpolation
+            u_guess[u] = { *u0_opt, *uf_opt };
+        } else if (u0_opt) {
+            // initial fixed: constant at initial
+            u_guess[u] = { *u0_opt, *u0_opt };
+        } else if (uf_opt) {
+            // final fixed: constant at final
+            u_guess[u] = { *uf_opt, *uf_opt };
+        } else {
+            // nothing fixed: use midpoint of bounds or zero if unbounded
+            f64 val = 0.0;
+            if (problem.pc->u_bounds[u].has_lower() && problem.pc->u_bounds[u].has_upper()) {
+                val = 0.5 * (problem.pc->u_bounds[u].lb + problem.pc->u_bounds[u].ub);
+            }
+           u_guess[u] = { val, val };
         }
-        u_guess[u] = { val, val };
     }
 
     // fill parameter guesses: use midpoint of bounds or zero
@@ -373,9 +388,24 @@ std::unique_ptr<PrimalDualTrajectory> SimulationInitialization::operator()(const
 }
 
 // csv emit
-CSVEmitter::CSVEmitter(std::string filename, bool write_header) : filename(filename), write_header(write_header) {}
+CSVEmitter::CSVEmitter(std::string filename,
+                       bool write_header,
+                       bool emit_costates)
+    : filename(filename),
+      write_header(write_header),
+      emit_costates(emit_costates) {}
 
-int CSVEmitter::operator()(const PrimalDualTrajectory& trajectory) { return trajectory.primals->to_csv(filename, write_header); }
+int CSVEmitter::operator()(const PrimalDualTrajectory& trajectory) {
+    int ret = trajectory.primals->to_csv("primals_" + filename, write_header); if (ret < 0) return ret;
+
+    if (emit_costates) {
+        ret = trajectory.costates->to_csv("costates_" + filename, write_header);             if (ret < 0) return ret;
+        ret = trajectory.lower_costates->to_csv("lower_costates_" + filename, write_header); if (ret < 0) return ret;
+        ret = trajectory.upper_costates->to_csv("upper_costates_" + filename, write_header);
+    }
+
+    return ret;
+}
 
 // print emit
 int PrintEmitter::operator()(const PrimalDualTrajectory& trajectory) { trajectory.primals->print_table(); return 0; }

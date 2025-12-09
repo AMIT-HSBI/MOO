@@ -222,7 +222,7 @@ void layout_mr_init_eval(GDOP::BoundarySweepLayout& layout_mr, c_problem_t* c_pr
 }
 
 void layout_mr_init_jac(GDOP::BoundarySweepLayout& layout_mr, c_problem_t* c_problem){
-    const int total_vars = 2 * c_problem->x_size + c_problem->u_size + c_problem->p_size + 2;
+    const int total_vars = 2 * (c_problem->x_size + c_problem->u_size) + c_problem->p_size + 2;
     const int total_eqns = (c_problem->has_mayer ? 1 : 0) + c_problem->r_size;
 
     for (int nz = 0; nz < c_problem->mr_jac->nnz; nz++) {
@@ -249,17 +249,20 @@ void layout_mr_init_jac(GDOP::BoundarySweepLayout& layout_mr, c_problem_t* c_pro
         if (col < c_problem->x_size) {
             fn.jac.dx0.push_back(JacobianSparsity{col, buf_index});
         }
-        else if (col < 2 * c_problem->x_size) {
-            fn.jac.dxf.push_back(JacobianSparsity{col - c_problem->x_size, buf_index});
+        else if (col < c_problem->x_size + c_problem->u_size) {
+            fn.jac.du0.push_back(JacobianSparsity{col - c_problem->x_size, buf_index});
         }
         else if (col < 2 * c_problem->x_size + c_problem->u_size) {
-            fn.jac.duf.push_back(JacobianSparsity{col - 2 * c_problem->x_size, buf_index});
+            fn.jac.dxf.push_back(JacobianSparsity{col - (c_problem->x_size + c_problem->u_size), buf_index});
         }
-        else if (col < 2 * c_problem->x_size + c_problem->u_size + c_problem->p_size) {
-            fn.jac.dp.push_back(JacobianSparsity{col - (2 * c_problem->x_size + c_problem->u_size), buf_index});
+        else if (col < 2 * (c_problem->x_size + c_problem->u_size)) {
+            fn.jac.duf.push_back(JacobianSparsity{col - (2 * c_problem->x_size + c_problem->u_size), buf_index});
+        }
+        else if (col < 2 * (c_problem->x_size + c_problem->u_size) + c_problem->p_size) {
+            fn.jac.dp.push_back(JacobianSparsity{col - 2 * (c_problem->x_size + c_problem->u_size), buf_index});
         }
         else {
-            fn.jac.dT.push_back(JacobianSparsity{col - (2 * c_problem->x_size + c_problem->u_size + c_problem->p_size), buf_index});
+            fn.jac.dT.push_back(JacobianSparsity{col - (2 * (c_problem->x_size + c_problem->u_size) + c_problem->p_size), buf_index});
         }
     }
 }
@@ -272,9 +275,10 @@ void layout_mr_init_hes(GDOP::BoundarySweepLayout& layout_mr, c_problem_t* c_pro
     const int ps = c_problem->p_size;
     const int Ts = 2;
 
-    // offsets for each block in the flat variable ordering x0, xf, uf, p, T
+    // offsets for each block in the flat variable ordering x0, u0, xf, uf, p, T
     const int off_x0 = 0;
-    const int off_xf = off_x0 + xs;
+    const int off_u0 = off_x0 + xs;
+    const int off_xf = off_u0 + us;
     const int off_uf = off_xf + xs;
     const int off_p  = off_uf + us;
     const int off_T  = off_p + ps;
@@ -309,14 +313,16 @@ void layout_mr_init_hes(GDOP::BoundarySweepLayout& layout_mr, c_problem_t* c_pro
 
         enum Region {
             X0 = 0,
-            XF = 1,
-            UF = 2,
-            P  = 3,
-            T  = 4
+            U0 = 1,
+            XF = 2,
+            UF = 3,
+            P  = 4,
+            T  = 5
         };
 
         auto region_of = [&](int idx) -> Region {
-            if (idx < off_xf) return X0;
+            if (idx < off_u0) return X0;
+            if (idx < off_xf) return U0;
             if (idx < off_uf) return XF;
             if (idx < off_p ) return UF;
             if (idx < off_T ) return P;
@@ -330,8 +336,18 @@ void layout_mr_init_hes(GDOP::BoundarySweepLayout& layout_mr, c_problem_t* c_pro
             hes.dx0_dx0.push_back({row - off_x0, col - off_x0, buf_index});
         }
 
+        else if (row_reg == U0 && col_reg == X0) {
+            hes.du0_dx0.push_back({row - off_u0, col - off_x0, buf_index});
+        }
+        else if (row_reg == U0 && col_reg == U0) {
+            hes.du0_du0.push_back({row - off_u0, col - off_u0, buf_index});
+        }
+
         else if (row_reg == XF && col_reg == X0) {
             hes.dxf_dx0.push_back({row - off_xf, col - off_x0, buf_index});
+        }
+        else if (row_reg == XF && col_reg == U0) {
+            hes.dxf_du0.push_back({row - off_xf, col - off_u0, buf_index});
         }
         else if (row_reg == XF && col_reg == XF) {
             hes.dxf_dxf.push_back({row - off_xf, col - off_xf, buf_index});
@@ -339,6 +355,9 @@ void layout_mr_init_hes(GDOP::BoundarySweepLayout& layout_mr, c_problem_t* c_pro
 
         else if (row_reg == UF && col_reg == X0) {
             hes.duf_dx0.push_back({row - off_uf, col - off_x0, buf_index});
+        }
+        else if (row_reg == UF && col_reg == U0) {
+            hes.duf_du0.push_back({row - off_uf, col - off_u0, buf_index});
         }
         else if (row_reg == UF && col_reg == XF) {
             hes.duf_dxf.push_back({row - off_uf, col - off_xf, buf_index});
@@ -349,6 +368,9 @@ void layout_mr_init_hes(GDOP::BoundarySweepLayout& layout_mr, c_problem_t* c_pro
 
         else if (row_reg == P && col_reg == X0) {
             hes.dp_dx0.push_back({row - off_p, col - off_x0, buf_index});
+        }
+        else if (row_reg == P && col_reg == U0) {
+            hes.dp_du0.push_back({row - off_p, col - off_u0, buf_index});
         }
         else if (row_reg == P && col_reg == XF) {
             hes.dp_dxf.push_back({row - off_p, col - off_xf, buf_index});
@@ -362,6 +384,9 @@ void layout_mr_init_hes(GDOP::BoundarySweepLayout& layout_mr, c_problem_t* c_pro
 
         else if (row_reg == T && col_reg == X0) {
             hes.dT_dx0.push_back({row - off_T, col - off_x0, buf_index});
+        }
+        else if (row_reg == T && col_reg == U0) {
+            hes.dT_du0.push_back({row - off_T, col - off_u0, buf_index});
         }
         else if (row_reg == T && col_reg == XF) {
             hes.dT_dxf.push_back({row - off_T, col - off_xf, buf_index});
@@ -568,8 +593,8 @@ GDOP::Problem create_gdop_problem(c_problem_t* c_problem, std::shared_ptr<Trajec
     auto g_bounds = create_bounds(c_problem->g_bounds, c_problem->g_size);
     auto r_bounds = create_bounds(c_problem->r_bounds, c_problem->r_size);
 
-    auto x0_fixed = create_fixed(c_problem->x0_fixed, c_problem->x_size);
-    auto xf_fixed = create_fixed(c_problem->xf_fixed, c_problem->x_size);
+    auto xu0_fixed = create_fixed(c_problem->xu0_fixed, c_problem->xu_size);
+    auto xuf_fixed = create_fixed(c_problem->xuf_fixed, c_problem->xu_size);
     auto T_fixed = create_time_fixed(c_problem->T_bounds);
 
     auto mesh = Mesh::create_equidistant_fixed_stages(
@@ -587,8 +612,8 @@ GDOP::Problem create_gdop_problem(c_problem_t* c_problem, std::shared_ptr<Trajec
         std::move(u_bounds),
         std::move(p_bounds),
         std::move(T_bounds),
-        std::move(x0_fixed),
-        std::move(xf_fixed),
+        std::move(xu0_fixed),
+        std::move(xuf_fixed),
         std::move(T_fixed),
         std::move(r_bounds),
         std::move(g_bounds),

@@ -67,11 +67,14 @@
 #define P_LFG_IDX(i)  (X_SIZE + U_SIZE + (i))
 
 #define X0_MR_IDX(i)  (0 + (i))
-#define XF_MR_IDX(i)  (X_SIZE + (i))
-#define UF_MR_IDX(i)  (2 * X_SIZE + (i))
-#define P_MR_IDX(i)   (2 * X_SIZE + U_SIZE + (i))
-#define T0_MR_IDX     (2 * X_SIZE + U_SIZE + P_SIZE)
-#define TF_MR_IDX     (2 * X_SIZE + U_SIZE + P_SIZE + 1)
+#define U0_MR_IDX(i)  (X_SIZE + (i))
+#define XF_MR_IDX(i)  (X_SIZE + U_SIZE + (i))
+#define UF_MR_IDX(i)  (2 * X_SIZE + U_SIZE + (i))
+#define P_MR_IDX(i)   (2 * (X_SIZE + U_SIZE) + (i))
+#define T0_MR_IDX     (2 * (X_SIZE + U_SIZE) + P_SIZE)
+#define TF_MR_IDX     (2 * (X_SIZE + U_SIZE) + P_SIZE + 1)
+
+#define XU_SIZE (X_SIZE + U_SIZE)
 
 // === declare global variables (values can be influenced by runtime parameters) ===
 
@@ -83,8 +86,8 @@ static bounds_t globl_T_bounds[2]      = { { -0.5, -0.5 }, { -0.5, 5.0 } };
 static bounds_t globl_g_bounds[G_SIZE] = { { 0, 0 } };
 static bounds_t globl_r_bounds[R_SIZE];
 
-static optional_value_t globl_x0_fixed[X_SIZE] = { {1.5, true} };
-static optional_value_t globl_xf_fixed[X_SIZE] = { {1,   true} };
+static optional_value_t globl_xu0_fixed[XU_SIZE] = { {1.5, true}, {0, false}, {0, false} };
+static optional_value_t globl_xuf_fixed[XU_SIZE] = { {1,   true}, {0, false}, {0, false} };
 
 static f64 globl_x_nominal[X_SIZE];
 static f64 globl_u_nominal[U_SIZE];
@@ -190,7 +193,7 @@ static void hes_lfg(const f64* xu, const f64* p, const f64* lambda, const f64 ob
 }
 
 // [M, r]
-static void eval_mr(const f64* x0, const f64* xuf, const f64* p, f64 t0, f64 tf, const f64* data_t0, const f64* data_tf, f64* out, void* user_data) {
+static void eval_mr(const f64* xu0, const f64* xuf, const f64* p, f64 t0, f64 tf, const f64* data_t0, const f64* data_tf, f64* out, void* user_data) {
     const f64* xf = xuf;
     const f64* uf = xuf + X_SIZE;
 
@@ -198,13 +201,13 @@ static void eval_mr(const f64* x0, const f64* xuf, const f64* p, f64 t0, f64 tf,
 }
 
 // ∇ [M, r]
-static void jac_mr(const f64* x0, const f64* xuf, const f64* p, f64 t0, f64 tf,
+static void jac_mr(const f64* xu0, const f64* xuf, const f64* p, f64 t0, f64 tf,
             const f64* data_t0, const f64* data_tf, f64* out, void* user_data) {
     out[0] = 1.0;
 }
 
 // σ ∇² M + λ^T ∇² r (lower triangle)
-static void hes_mr(const f64* x0, const f64* xuf, const f64* p, const f64* lambda, const f64 obj_factor, f64 t0, f64 tf,
+static void hes_mr(const f64* xu0, const f64* xuf, const f64* p, const f64* lambda, const f64 obj_factor, f64 t0, f64 tf,
             const f64* data_t0, const f64* data_tf, f64* out, void* user_data) {
 
 }
@@ -225,7 +228,7 @@ static c_callbacks_t globl_callbacks = {
 
 static mesh_ref_ctx_t globl_mesh_ctx = {
     .initial_intervals = 10,
-    .nodes_per_interval = 3,
+    .nodes_per_interval = 5,
     .l2bn_p1_it = 1,
     .l2bn_p2_it = 0,
     .l2bn_p2_lvl = 0.0
@@ -254,8 +257,8 @@ static c_problem_t globl_c_problem = {
     .T_bounds = globl_T_bounds,
     .r_bounds = globl_r_bounds,
     .g_bounds = globl_g_bounds,
-    .x0_fixed = globl_x0_fixed,
-    .xf_fixed = globl_xf_fixed,
+    .xu0_fixed = globl_xu0_fixed,
+    .xuf_fixed = globl_xuf_fixed,
     .x_nominal = globl_x_nominal,
     .u_nominal = globl_u_nominal,
     .p_nominal = globl_p_nominal,

@@ -63,6 +63,7 @@ public:
     inline int                       get_off_u()          const { return off_u; }
     inline int                       get_off_p()          const { return off_p; }
     inline int                       get_off_xu()         const { return off_xu; }
+    inline int                       get_off_first_xu()   const { return off_xu; }
     inline int                       get_off_last_xu()    const { return off_last_xu; }
     inline int                       get_off_xu_total()   const { return off_xu_total; }
     inline int                       get_off_fg_total()   const { return off_fg_total; }
@@ -177,8 +178,9 @@ private:
     int off_xu_total;  // first parameter variable index
     int off_xup_total; // first time t0 variable index (tf += 1)
     int off_fg_total;  // first boundary constraint index
+    int off_fgr_total; // first artificial initial control constraint index
 
-    // note off_acc_xu[0][0] = off_x for time t = first collocation node, since there are no controls at time t=0
+    // note off_acc_xu[0][0] = off_xu for time t = first collocation node (as we also have xu(t0) before)
     FixedField<int, 2>   off_acc_xu; // offset to NLP_X first index of (x, u)(t_ij), i.e. NLP_X[off_acc_xu[i][j]] = x[i][j], u[i][j]
     FixedField<int, 2>   off_acc_fg; // offset to NLP_G first index of (f, g)(t_ij), i.e. NLP_G[off_acc_fg[i][j]] = f[i][j], g[i][j]
     FixedVector<int> off_acc_jac_fg; // offset to NLP_JAC_G first index of nabla (f, g)(t_ij)
@@ -204,9 +206,9 @@ private:
     // === private / internal methods ===
 
     // inline methods for getting and providing current variable / dual addresses in callback
-    // x0 => x(t0), xu => xu(t_01), xuf => xu(t_f), p => p, lamb_fg => fg(t_01), lamb_r => r
-    inline const f64* get_x_x0(const FixedVector<f64>& x)  { return off_x        != 0 ?  x.raw()              : nullptr; }
-    inline const f64* get_x_xu(const FixedVector<f64>& x)  { return off_xu       != 0 ? &x[off_x]             : nullptr; }
+    // xu0 => xu(t0), xu => xu(t_01), xuf => xu(t_f), p => p, lamb_fg => fg(t_01), lamb_r => r
+    inline const f64* get_x_xu0(const FixedVector<f64>& x) { return off_x        != 0 ?  x.raw()              : nullptr; }
+    inline const f64* get_x_xu(const FixedVector<f64>& x)  { return off_xu       != 0 ? &x[off_xu]            : nullptr; }
     inline const f64* get_x_xuf(const FixedVector<f64>& x) { return off_xu       != 0 ? &x[off_last_xu]       : nullptr; }
     inline const f64* get_x_p(const FixedVector<f64>& x)   { return off_p        != 0 ? &x[off_xu_total]      : nullptr; }
     inline const f64* get_x_t0(const FixedVector<f64>& x)  { return spectral_mesh     ? &x[off_xup_total]     : nullptr; }
@@ -215,7 +217,7 @@ private:
     inline f64* get_lmbd_r(FixedVector<f64>& lambda) { return problem.pc->r_size != 0 ? &lambda[off_fg_total] : nullptr; }
 
     // helpers for initialize offsets 
-    void create_acc_offset_xu(int off_x, int off_xu);
+    void create_acc_offset_xu(int off_xu);
     void create_acc_offset_fg(int off_fg);
 
     // init nlp and sparsity
@@ -255,7 +257,8 @@ private:
 
     void flatten_trajectory_to_layout(
         const Trajectory& Trajectory,
-        FixedVector<f64>& flat_buffer);
+        FixedVector<f64>& flat_buffer,
+        bool from_costates);
 
     void transform_duals_costates(
         FixedVector<f64>& lambda,
@@ -285,61 +288,61 @@ Hessian Sparsity Layout (lower triangle):
     Note that blocks [[L, 0], [X, L]] are also triangular
 
                                             {n,m-1}
-     | x00 | x01 u01 | x02 u02 | x** u** | xnm1 unm1 | xnm unm |  p  | t0 tf |
------------------------------------------------------------------------------|
- x00 |  L  |         |         |         |           |         |     |       |
------------------------------------------------------------------------------|
- x01 |     |  L   0  |         |         |           |         |     |       |
- u01 |     |  X   L  |         |         |           |         |     |       |
- ----------------------------------------------------------------------------|
- x02 |     |         |  L   0  |         |           |         |     |       |
- u02 |     |         |  X   L  |         |           |         |     |       |
- ----------------------------------------------------------------------------|
- x** |     |         |         |  L   0  |           |         |     |       |
- u** |     |         |         |  X   L  |           |         |     |       |
- ----------------------------------------------------------------------------|
- xnm1|     |         |         |         |   L   0   |         |     |       |
- unm1|     |         |         |         |   X   L   |         |     |       |
------------------------------------------------------------------------------|
- xnm |  X  |         |         |         |           |  L   0  |     |       |
- unm |  X  |         |         |         |           |  X   L  |     |       |
------------------------------------------------------------------------------|
-  p  |  X  |  X   X  |  X   X  |  X   X  |   X   X   |  X   X  |  L  |       |
------------------------------------------------------------------------------|
-  t0 |  X  |  X   X  |  X   X  |  X   X  |   X   X   |  X   X  |  X  |   L   |
-  tf |  X  |  X   X  |  X   X  |  X   X  |   X   X   |  X   X  |  X  |       |
------------------------------------------------------------------------------*
+     | x00 u00 | x01 u01 | x02 u02 | x** u** | xnm1 unm1 | xnm unm |  p  | t0 tf |
+---------------------------------------------------------------------------------|
+ x00 |    L    |         |         |         |           |         |     |       |
+---------------------------------------------------------------------------------|
+ x01 |         |  L   0  |         |         |           |         |     |       |
+ u01 |         |  X   L  |         |         |           |         |     |       |
+ --------------------------------------------------------------------------------|
+ x02 |         |         |  L   0  |         |           |         |     |       |
+ u02 |         |         |  X   L  |         |           |         |     |       |
+ --------------------------------------------------------------------------------|
+ x** |         |         |         |  L   0  |           |         |     |       |
+ u** |         |         |         |  X   L  |           |         |     |       |
+ --------------------------------------------------------------------------------|
+ xnm1|         |         |         |         |   L   0   |         |     |       |
+ unm1|         |         |         |         |   X   L   |         |     |       |
+---------------------------------------------------------------------------------|
+ xnm |    X    |         |         |         |           |  L   0  |     |       |
+ unm |    X    |         |         |         |           |  X   L  |     |       |
+---------------------------------------------------------------------------------|
+  p  |    X    |  X   X  |  X   X  |  X   X  |   X   X   |  X   X  |  L  |       |
+---------------------------------------------------------------------------------|
+  t0 |    X    |  X   X  |  X   X  |  X   X  |   X   X   |  X   X  |  X  |   L   |
+  tf |    X    |  X   X  |  X   X  |  X   X  |   X   X   |  X   X  |  X  |       |
+---------------------------------------------------------------------------------*
 
 Block Sparsity Patterns: A - H
-    where A=triang(x) B=triang(x + u), C=sq(x), D=triang(x + u), E=rect(p, x),
+    where A=triang(x + u) B=triang(x + u), C=sq(x + u), D=triang(x + u), E=rect(p, x + u),
           F=rect(p, x + u), G=rect(p, x + u), H=triang(p, p)
 
 Incl. SpectralMesh: I - K
-    where I=rect(T, x), J=rect_dense(T, xu), K=rect(T, p), L=triang(T, T) (sizeof(T) == 2)
+    where I=rect(T, x + u), J=rect_dense(T, x + u), K=rect(T, p), L=triang(T, T) (sizeof(T) == 2)
     and   J are fully dense blocks
                                             {n,m-1}
-     | x00 | x01 u01 | x02 u02 | x** u** | xnm1 unm1 | xnm unm |  p  | t0 tf |
----------------------------------------------------------------------|-------|
- x00 |  A  |         |         |         |           |         |     |       |
------------------------------------------------------------------------------|
- x01 |     |    B    |         |         |           |         |     |       |
- u01 |     |         |         |         |           |         |     |       |
- ----------------------------------------------------------------------------|
- x02 |     |         |    B    |         |           |         |     |       |
- u02 |     |         |         |         |           |         |     |       |
- ----------------------------------------------------------------------------|
- x** |     |         |         |    B    |           |         |     |       |
- u** |     |         |         |         |           |         |     |       |
- ----------------------------------------------------------------------------|
- xnm1|     |         |         |         |     B     |         |     |       |
- unm1|     |         |         |         |           |         |     |       |
------------------------------------------------------------------------------|
- xnm |  C  |         |         |         |           |    D    |     |       |
- unm |     |         |         |         |           |         |     |       |
------------------------------------------------------------------------------|
-  p  |  E  |    F    |    F    |    F    |     F     |    G    |  H  |       |
------------------------------------------------------------------------------|
-  t0 |  I  |    J    |    J    |    J    |     J     |    J    |  K  |   L   |
-  tf |     |         |         |         |           |         |     |       |
------------------------------------------------------------------------------*
+     | x00 u00 | x01 u01 | x02 u02 | x** u** | xnm1 unm1 | xnm unm |  p  | t0 tf |
+-------------------------------------------------------------------------|-------|
+ x00 |    A    |         |         |         |           |         |     |       |
+---------------------------------------------------------------------------------|
+ x01 |         |    B    |         |         |           |         |     |       |
+ u01 |         |         |         |         |           |         |     |       |
+ --------------------------------------------------------------------------------|
+ x02 |         |         |    B    |         |           |         |     |       |
+ u02 |         |         |         |         |           |         |     |       |
+ --------------------------------------------------------------------------------|
+ x** |         |         |         |    B    |           |         |     |       |
+ u** |         |         |         |         |           |         |     |       |
+ --------------------------------------------------------------------------------|
+ xnm1|         |         |         |         |     B     |         |     |       |
+ unm1|         |         |         |         |           |         |     |       |
+---------------------------------------------------------------------------------|
+ xnm |    C    |         |         |         |           |    D    |     |       |
+ unm |         |         |         |         |           |         |     |       |
+---------------------------------------------------------------------------------|
+  p  |    E    |    F    |    F    |    F    |     F     |    G    |  H  |       |
+---------------------------------------------------------------------------------|
+  t0 |    I    |    J    |    J    |    J    |     J     |    J    |  K  |   L   |
+  tf |         |         |         |         |           |         |     |       |
+---------------------------------------------------------------------------------*
 */

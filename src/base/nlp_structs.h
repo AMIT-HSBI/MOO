@@ -95,13 +95,14 @@ struct MOO_EXPORT FunctionLFG {
 struct MOO_EXPORT JacobianMR {
     // coordinate format jacobian for MR functions
     std::vector<JacobianSparsity> dx0;
+    std::vector<JacobianSparsity> du0;
     std::vector<JacobianSparsity> dxf;
     std::vector<JacobianSparsity> duf;
     std::vector<JacobianSparsity> dp;
     std::vector<JacobianSparsity> dT;
 
     inline int nnz() const {
-        return dx0.size() + dxf.size() + duf.size() + dp.size() + dT.size();
+        return dx0.size() + du0.size() + dxf.size() + duf.size() + dp.size() + dT.size();
     }
 
     inline int nnz_time() const {
@@ -109,23 +110,29 @@ struct MOO_EXPORT JacobianMR {
     }
 
     inline int nnz_no_time() const {
-        return dx0.size() + dxf.size() + duf.size() + dp.size();
+        return dx0.size() + du0.size() + dxf.size() + duf.size() + dp.size();
     }
 };
 
 struct MOO_EXPORT HessianMR {
     // coordinate format hessian for MR functions
     std::vector<HessianSparsity> dx0_dx0;
+    std::vector<HessianSparsity> du0_dx0;
+    std::vector<HessianSparsity> du0_du0;
     std::vector<HessianSparsity> dxf_dx0;
+    std::vector<HessianSparsity> dxf_du0;
     std::vector<HessianSparsity> dxf_dxf;
     std::vector<HessianSparsity> duf_dx0;
+    std::vector<HessianSparsity> duf_du0;
     std::vector<HessianSparsity> duf_dxf;
     std::vector<HessianSparsity> duf_duf;
     std::vector<HessianSparsity> dp_dx0;
+    std::vector<HessianSparsity> dp_du0;
     std::vector<HessianSparsity> dp_dxf;
     std::vector<HessianSparsity> dp_duf;
     std::vector<HessianSparsity> dp_dp;
     std::vector<HessianSparsity> dT_dx0;
+    std::vector<HessianSparsity> dT_du0;
     std::vector<HessianSparsity> dT_dxf;
     std::vector<HessianSparsity> dT_duf;
     std::vector<HessianSparsity> dT_dp;
@@ -133,21 +140,23 @@ struct MOO_EXPORT HessianMR {
 
     inline int nnz() const {
         return dx0_dx0.size()
-             + dxf_dx0.size() + dxf_dxf.size()
-             + duf_dx0.size() + duf_dxf.size() + duf_duf.size()
-             + dp_dx0.size()  + dp_dxf.size()  + dp_duf.size() + dp_dp.size()
-             + dT_dx0.size()  + dT_dxf.size()  + dT_duf.size() + dT_dp.size() + dT_dT.size();
+             + du0_dx0.size() + du0_du0.size()
+             + dxf_dx0.size() + dxf_du0.size() + dxf_dxf.size()
+             + duf_dx0.size() + duf_du0.size() + duf_dxf.size() + duf_duf.size()
+             + dp_dx0.size()  + dp_du0.size()  + dp_dxf.size()  + dp_duf.size() + dp_dp.size()
+             + dT_dx0.size()  + dT_du0.size()  + dT_dxf.size()  + dT_duf.size() + dT_dp.size() + dT_dT.size();
     }
 
     inline int nnz_time() const {
-        return dT_dx0.size()  + dT_dxf.size()  + dT_duf.size() + dT_dp.size() + dT_dT.size();
+        return dT_dx0.size() + dT_du0.size() + dT_dxf.size()  + dT_duf.size() + dT_dp.size() + dT_dT.size();
     }
 
     inline int nnz_no_time() const {
         return dx0_dx0.size()
-             + dxf_dx0.size() + dxf_dxf.size()
-             + duf_dx0.size() + duf_dxf.size() + duf_duf.size()
-             + dp_dx0.size()  + dp_dxf.size()  + dp_duf.size() + dp_dp.size();
+             + du0_dx0.size() + du0_du0.size()
+             + dxf_dx0.size() + dxf_du0.size() + dxf_dxf.size()
+             + duf_dx0.size() + duf_du0.size() + duf_dxf.size() + duf_duf.size()
+             + dp_dx0.size()  + dp_du0.size()  + dp_dxf.size()  + dp_duf.size() + dp_dp.size();
     }
 };
 

@@ -102,12 +102,12 @@ $p$, free final time $t_0$ and free final time $t_f$ of the form:
 
 $$
 \begin{aligned}
-\min_{u(t), p, t_0, t_f}\quad & M(x_0, x_f, u_f, p, t_0, t_f)
+\min_{u(t), p, t_0, t_f}\quad & M(x_0, u_0, x_f, u_f, p, t_0, t_f)
 + \int_{t_0}^{t_f} L\bigl(x(t), u(t), p\bigr)\, dt \\[6pt]
 \text{s.t.}\quad
 & \frac{dx}{dt} = f\bigl(x(t), u(t), p\bigr), \quad t \in [t_0, t_f], \\[4pt]
 & g^L \le g\bigl(x(t), u(t), p\bigr) \le g^U, \quad t \in [t_0, t_f], \\[4pt]
-& r^L \le r\bigl(x_0, x_f, u_f, p, t_0, t_f\bigr) \le r^U, \\[4pt]
+& r^L \le r\bigl(x_0, u_0, x_f, u_f, p, t_0, t_f\bigr) \le r^U, \\[4pt]
 & x^L \le x(t) \le x^U, \quad
   u^L \le u(t) \le u^U, \quad
   t \in [t_0, t_f] \\
@@ -123,12 +123,12 @@ If the problem is given on a fixed time horizon $[t_0, t_f]$, the library can al
 
 $$
 \begin{aligned}
-\min_{u(t), p}\quad & M(x_0, x_f, u_f, p)
+\min_{u(t), p}\quad & M(x_0, u_0, x_f, u_f, p)
 + \int_{t_0}^{t_f} L\bigl(x(t), u(t), p, t\bigr)\, dt \\[6pt]
 \text{s.t.}\quad
 & \frac{dx}{dt} = f\bigl(x(t), u(t), p, t\bigr), \quad t \in [t_0, t_f], \\[4pt]
 & g^L \le g\bigl(x(t), u(t), p, t\bigr) \le g^U, \quad t \in [t_0, t_f], \\[4pt]
-& r^L \le r\bigl(x_0, x_f, u_f, p\bigr) \le r^U, \\[4pt]
+& r^L \le r\bigl(x_0, u_0, x_f, u_f, p\bigr) \le r^U, \\[4pt]
 & x^L \le x(t) \le x^U, \quad
   u^L \le u(t) \le u^U, \quad
   t \in [t_0, t_f] \\
