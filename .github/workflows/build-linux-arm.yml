@@ -43,7 +43,7 @@ jobs:
       - name: Run test
         run: cmake --build build --target test
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: install-linux-arm-${{ matrix.setup.c }}-${{ matrix.setup.generator }}
           path: install/
