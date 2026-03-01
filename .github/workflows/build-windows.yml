@@ -56,7 +56,7 @@ jobs:
         shell: msys2 {0}
         run: cmake --build build --target test
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: install-windows-${{ matrix.setup.c }}-${{ matrix.setup.generator }}
           path: install/
