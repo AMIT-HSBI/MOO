@@ -70,7 +70,7 @@ target_sources(moo PRIVATE
 
 if (MOO_WITH_C_INTERFACE)
     message(STATUS "Building MOO with C interface")
-    target_sources(moo PRIVATE src/interfaces/c/problem.cpp )
+    target_sources(moo PRIVATE src/interfaces/c/problem.cpp)
 endif ()
 
 if (MOO_WITH_FMI_INTERFACE)
@@ -80,12 +80,13 @@ if (MOO_WITH_FMI_INTERFACE)
     set(FMI4C_USE_SYSTEM_ZIP OFF)
     add_subdirectory(third-party/fmi4c)
 
-    target_sources(moo PRIVATE src/interfaces/fmi/problem.cpp )
+    target_sources(moo PRIVATE src/interfaces/fmi/expressions.cpp)
+    target_sources(moo PRIVATE src/interfaces/fmi/problem.cpp)
 endif ()
 
 if (MOO_WITH_GDOPT)
     message(STATUS "Building MOO with GDOPT support")
-    target_sources(moo PRIVATE src/interfaces/gdopt/main_gdopt.cpp )
+    target_sources(moo PRIVATE src/interfaces/gdopt/main_gdopt.cpp)
 endif ()
 
 target_include_directories(moo

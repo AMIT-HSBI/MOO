@@ -20,6 +20,7 @@
 
 #include <base/log.h>
 #include <interfaces/fmi/problem.h>
+#include <interfaces/fmi/expressions.h>
 
 #include <nlp/instances/gdop/orchestrator.h>
 #include <nlp/solvers/ipopt/solver.h>
@@ -391,6 +392,18 @@ FMIData::FMIData(FMISettings& settings)
         auto* h = find_output_handle(priv->fmu, priv->output_vrefs, priv->Lfg_vrefs.back());
         priv->Lfg_dependencies.push_back(h ? read_dependencies(h, priv->vref_map) : std::vector<Dependency>{});
     }
+    else if (!settings.lagrange_expr.empty())
+    {
+        priv->has_lagrange = true;
+        std::vector<Dependency> deps;
+        priv->Lfg_vrefs.push_back(static_cast<fmi3ValueReference>(0));
+        for (auto const& e : settings.lagrange_expr.terms)
+        {
+            // create self dependency as function is of form sum a_i * x_i^2 + b_i * x_i + c_i
+            deps.push_back(make_dependency(e.vref, priv->vref_map));
+        }
+        priv->Lfg_dependencies.push_back(deps);
+    }
 
     // f: state derivatives
     {
@@ -532,10 +545,19 @@ void FMIData::eval_point_lfg(const f64* xu, const f64* p, f64 time, f64* out)
     fmi3_getContinuousStateDerivatives(priv->instance, out + off_f, n_x);
 
     // L
-    if (has_L) {
+    if (has_L && settings.lagrange_expr.empty()) {
         fmi3_getFloat64(priv->instance,
                         priv->Lfg_vrefs.data(), 1,
                         out + off_L, 1);
+    }
+    else if (!settings.lagrange_expr.empty())
+    {
+        auto get_ref_value = [&](uint32_t ref) {
+            f64 work;
+            fmi3_getFloat64(priv->instance, &ref, 1, &work, 1);
+            return work;
+        };
+        out[off_L] = settings.lagrange_expr.eval(time, get_ref_value);
     }
 
     // g, c
@@ -566,7 +588,25 @@ void FMIData::jac_point_lfg(const f64* xu, const f64* p, f64 time, f64* out) {
         return (s == fmi3OK) ? result : 0.0;
     };
 
-    for (size_t row = 0; row < priv->Lfg_vrefs.size(); row++) {
+    int row_off = 0;
+
+    if (!settings.lagrange_expr.empty())
+    {
+        auto get_ref_value = [&](uint32_t ref) {
+            f64 work;
+            fmi3_getFloat64(priv->instance, &ref, 1, &work, 1);
+            return work;
+        };
+
+        for (auto& L_i : settings.lagrange_expr.terms)
+        {
+            out[out_idx++] = settings.lagrange_expr.deval_dy(L_i, get_ref_value(L_i.vref), time);
+        }
+
+        row_off++;
+    }
+
+    for (size_t row = row_off; row < priv->Lfg_vrefs.size(); row++) {
         fmi3ValueReference row_vref = priv->Lfg_vrefs[row];
         for (const auto& dep : priv->Lfg_dependencies[row]) {
             out[out_idx++] = get_partial(row_vref, dep.vref);
@@ -985,7 +1025,7 @@ void main_fmi(FMISettings& settings) {
     nlp_solver_settings.set(NLP::Option::Hessian, NLP::HessianOption::LBFGS);
     nlp_solver_settings.set(NLP::Option::Jacobian, NLP::JacobianOption::Exact);
     nlp_solver_settings.set(NLP::Option::Gradient, NLP::GradientOption::Exact);
-    //nlp_solver_settings.set(NLP::Option::IpoptDerivativeTest, true);
+   // nlp_solver_settings.set(NLP::Option::IpoptDerivativeTest, true);
     nlp_solver_settings.set(NLP::Option::Tolerance, settings.tolerance);
     nlp_solver_settings.print();
 

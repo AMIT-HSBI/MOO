@@ -20,24 +20,29 @@
 
 #include <interfaces/fmi/problem.h>
 
+#include <cmath>
+
 int main() {
     FMI::FMISettings settings;
     settings.path = MULTILINK_FMU_PATH;
     settings.modelname = "Multilink";
     settings.t0 = 0.0;
-    settings.tf = 100.0;
+    settings.tf = 2.0;
     settings.intervals = 200;
     settings.stage = 1;
-    // 2e6 min max
 
-    f64 factor_u = 10;
-    f64 factor_phi = 1;
+    uint32_t vref_u = 620756992;
+    uint32_t vref_phi = 33554432;
 
-    settings.control_vrefs.push_back( { 620756992, -2e6, 2e6, 2e6 } );
+    f64 factor_u = 1e-12;
+    f64 factor_phi = 1e4;
 
-    settings.parameter_vrefs = {};
+    settings.control_vrefs.push_back( { vref_u, -2e6, 2e6, 2e6 } );
 
-    settings.lagrange_vref = nullptr;
+    auto u_penalty = FMI::ExprTerm::quadratic_term(vref_u, factor_u);
+    auto phi_penalty = FMI::ExprTerm::tracking_term(vref_phi, [](f64 t) -> f64 { return -0.286848 + 0.13 * sin(2 * M_PI * t);}, factor_phi);
+
+    settings.lagrange_expr.terms = { phi_penalty, u_penalty };
 
     FMI::main_fmi(settings);
 

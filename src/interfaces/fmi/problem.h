@@ -24,7 +24,23 @@
 #include <nlp/instances/gdop/problem.h>
 #include <nlp/instances/gdop/gdop.h>
 
+#include <interfaces/fmi/expressions.h>
+
 namespace FMI {
+
+// bounded output constraints
+struct BoundedVRef {
+    uint32_t vref;
+    f64 lb;
+    f64 ub;
+    f64 nominal = 1.0;
+};
+
+// start values
+struct StartVRef {
+    uint32_t vref;
+    f64 value;
+};
 
 // user-facing configuration / problem formulation
 struct FMISettings {
@@ -41,17 +57,12 @@ struct FMISettings {
     int l2bn_p2_it = 0;
     f64 l2bn_p2_lvl = 0.0;
 
-    // bounded output constraints
-    struct BoundedVRef {
-        uint32_t vref;
-        f64 lb;
-        f64 ub;
-        f64 nominal = 1.0;
-    };
-
     // objective terms (output vrefs)
     uint32_t* lagrange_vref = nullptr; // L(x, u, z, p, t)
-    uint32_t* mayer_vref = nullptr;    // M(xf, uf, zf, p, tf)
+    uint32_t* mayer_vref = nullptr; // M(xf, uf, zf, p, tf)
+
+    // custom built expression for L
+    Expr lagrange_expr;
 
     // p^L <= p <= p^U tunable parameters to include
     std::vector<BoundedVRef> parameter_vrefs;
