@@ -31,15 +31,20 @@ namespace FMI {
 // bounded output constraints
 struct BoundedVRef {
     uint32_t vref;
-    f64 lb;
-    f64 ub;
-    f64 nominal = 1.0;
+    f64 lb = MINUS_INFINITY;
+    f64 ub = PLUS_INFINITY;
 };
 
-// start values
-struct StartVRef {
+// start values at initial time
+struct FixedStartVRef {
     uint32_t vref;
     f64 value;
+};
+
+// nominal values
+struct NominalVRef {
+    uint32_t vref;
+    f64 nominal;
 };
 
 // user-facing configuration / problem formulation
@@ -78,6 +83,12 @@ struct FMISettings {
 
     // r0^L <= r0(x0, u0, z0, p, t0) <= r0^U (appended to Mrf after rf)
     std::vector<BoundedVRef> initial_constraint_vrefs;
+
+    // (x, u, z)(0) fixed
+    std::vector<FixedStartVRef> fixed_start_values;
+
+    // nominals for each variable
+    std::vector<NominalVRef> nominals;
 };
 
 class FMIData {
@@ -99,6 +110,9 @@ public:
     // boundary evaluation / Jacobian (r0) at initial time
     void eval_point_r0(const f64* xu0, const f64* p, f64 t0, f64* out);
     void jac_point_r0 (const f64* xu0, const f64* p, f64 t0, f64* out);
+
+    const std::vector<uint32_t>& get_xuz_vrefs() const;
+    const std::vector<uint32_t>& get_p_vrefs() const;
 
     FMISettings& settings;
     std::unique_ptr<struct FMIData_priv> priv;

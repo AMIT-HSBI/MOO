@@ -80,6 +80,7 @@ if (MOO_WITH_FMI_INTERFACE)
     set(FMI4C_USE_SYSTEM_ZIP OFF)
     add_subdirectory(third-party/fmi4c)
 
+    target_sources(moo PRIVATE src/interfaces/fmi/strategies.cpp)
     target_sources(moo PRIVATE src/interfaces/fmi/expressions.cpp)
     target_sources(moo PRIVATE src/interfaces/fmi/problem.cpp)
 endif ()

@@ -21,6 +21,7 @@
 #include <base/log.h>
 #include <interfaces/fmi/problem.h>
 #include <interfaces/fmi/expressions.h>
+#include <interfaces/fmi/strategies.h>
 
 #include <nlp/instances/gdop/orchestrator.h>
 #include <nlp/solvers/ipopt/solver.h>
@@ -123,6 +124,17 @@ struct FMIData_priv {
 
     FMIData_priv(const char* path, const char* modelname);
 };
+
+// TODO: add const getters for all that may be used in other places: e.g. for strategies
+const std::vector<uint32_t>& FMIData::get_xuz_vrefs() const
+{
+    return priv->xuz_vrefs;
+}
+
+const std::vector<uint32_t>& FMIData::get_p_vrefs() const
+{
+    return priv->p_vrefs;
+}
 
 FMIData_priv::FMIData_priv(const char* path, const char* modelname)
     : fmu(fmi4c_loadFmu(path, modelname)),
@@ -730,6 +742,12 @@ GDOP::ProblemConstants create_problem_constants(FMIData& fmi_data)
         xu0_fixed[i] = x0[i];
     }
 
+    for (size_t i = 0; i < fmi_data.settings.fixed_start_values.size(); i++) {
+        auto start = fmi_data.settings.fixed_start_values[i];
+        auto idx = fmi_data.priv->vref_map[start.vref].xu_index;
+        xu0_fixed[idx] = start.value;
+    }
+
     for (size_t i = 0; i < fmi_data.settings.control_vrefs.size(); i++) {
         auto obj = fmi_data.settings.control_vrefs[i];
         u_bounds[i].lb = obj.lb;
@@ -1018,6 +1036,7 @@ void main_fmi(FMISettings& settings) {
     auto strategies = std::make_unique<GDOP::Strategies>(GDOP::Strategies::default_strategies());
     strategies->emitter = std::make_shared<GDOP::CSVEmitter>("optimal_solution.csv", false);
     strategies->mesh_refinement = std::make_shared<GDOP::L2BoundaryNorm>(settings.l2bn_p1_it, settings.l2bn_p2_it, settings.l2bn_p2_lvl);
+    strategies->scaling_factory = std::make_shared<FMI::NominalScalingFactory>(fmi_data);
 
     auto gdop = GDOP::GDOP(problem);
 
@@ -1025,7 +1044,7 @@ void main_fmi(FMISettings& settings) {
     nlp_solver_settings.set(NLP::Option::Hessian, NLP::HessianOption::LBFGS);
     nlp_solver_settings.set(NLP::Option::Jacobian, NLP::JacobianOption::Exact);
     nlp_solver_settings.set(NLP::Option::Gradient, NLP::GradientOption::Exact);
-   // nlp_solver_settings.set(NLP::Option::IpoptDerivativeTest, true);
+    nlp_solver_settings.set(NLP::Option::IpoptDerivativeTest, true);
     nlp_solver_settings.set(NLP::Option::Tolerance, settings.tolerance);
     nlp_solver_settings.print();
 
