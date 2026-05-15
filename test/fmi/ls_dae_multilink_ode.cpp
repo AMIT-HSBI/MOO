@@ -24,7 +24,7 @@
 
 int main() {
     FMI::FMISettings settings;
-    settings.path = MULTILINK_FMU_PATH;
+    settings.path = MULTILINK_ODE_FMU_PATH;
     settings.modelname = "Multilink";
     settings.t0 = 0.0;
     settings.tf = 2.0;

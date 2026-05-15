@@ -166,6 +166,18 @@ static std::vector<Dependency> read_dependencies(fmiLsDaeModelStructureHandle* h
     return deps;
 }
 
+static std::vector<Dependency> make_dep_from_vref(std::vector<fmi3ValueReference>& vref_deps, const std::unordered_map<fmi3ValueReference, VarIndex>& vref_map)
+{
+    std::vector<Dependency> deps;
+
+    for (auto& vref : vref_deps)
+    {
+        deps.push_back(make_dependency(vref, vref_map));
+    }
+
+    return deps;
+}
+
 // find the output handle for a given vref
 static fmiLsDaeModelStructureHandle* find_output_handle(fmuHandle* fmu,
                                                          const std::vector<fmi3ValueReference>& output_vrefs,
@@ -271,27 +283,56 @@ FMIData::FMIData(FMISettings& settings)
         Log::error("fmi4c_loadFmu failed");
         throw std::runtime_error("Failed to load FMU");
     }
+
+    bool with_ls_dae = true;
+
     if (!fmiLsDae_isPresent(priv->fmu)) {
-        Log::error("fmi-ls-dae manifest not found in FMU");
-        fmi4c_freeFmu(priv->fmu);
-        throw std::runtime_error("Missing fmi-ls-dae manifest");
+        Log::info("fmi-ls-dae manifest not found in FMU");
+        with_ls_dae = false;
     }
 
     // Layer 1: populate raw FMU variable sets
+    size_t nStates;
 
-    int nStates = fmiLsDae_getNumberOfContinuousStateDerivatives(priv->fmu);
+    if (with_ls_dae)
+    {
+        nStates = fmiLsDae_getNumberOfContinuousStateDerivatives(priv->fmu);
+    }
+    else
+    {
+        fmi3_getNumberOfContinuousStates(priv->instance, &nStates);
+        Log::info("{} states", nStates);
+    }
 
     // create work buffer with size of states
     work = std::vector<f64>(nStates);
 
     // states and their derivatives
     {
-        for (int s = 0; s < nStates; s++) {
-            auto* h      = fmiLsDae_getContinuousStateDerivativeByIndex(priv->fmu, s);
-            auto der_ref = fmiLsDae_getValueReference(h);
-            auto x_ref   = fmi3_getVariableDerivativeIndex(fmi3_getVariableByValueReference(priv->fmu, der_ref));
-            priv->state_vrefs.push_back(x_ref);
-            priv->deriv_vrefs.push_back(der_ref);
+        if (with_ls_dae)
+        {
+            for (size_t s = 0; s < nStates; s++) {
+                auto* h      = fmiLsDae_getContinuousStateDerivativeByIndex(priv->fmu, s);
+                auto der_ref = fmiLsDae_getValueReference(h);
+                auto x_ref   = fmi3_getVariableDerivativeIndex(fmi3_getVariableByValueReference(priv->fmu, der_ref));
+                priv->state_vrefs.push_back(x_ref);
+                priv->deriv_vrefs.push_back(der_ref);
+            }
+        }
+        else
+        {
+            for (size_t var_idx = 0; var_idx < nStates; var_idx++)
+            {
+                auto* der_mhandle = fmi3_getModelStructureContinuousStateDerivative(priv->fmu, var_idx);
+                auto der_vref = fmi3_getModelStructureValueReference(der_mhandle);
+                auto* der_handle = fmi3_getVariableByValueReference(priv->fmu, der_vref);
+                auto state_vref = fmi3_getVariableDerivativeIndex(der_handle);
+                if (state_vref != 0)
+                {
+                    priv->state_vrefs.push_back(state_vref);
+                    priv->deriv_vrefs.push_back(fmi3_getVariableValueReference(der_handle));
+                }
+            }
         }
     }
 
@@ -419,11 +460,43 @@ FMIData::FMIData(FMISettings& settings)
 
     // f: state derivatives
     {
-        int n = static_cast<int>(priv->state_vrefs.size());
-        for (int i = 0; i < n; i++) {
-            priv->Lfg_vrefs.push_back(priv->deriv_vrefs[i]);
-            auto* h = fmiLsDae_getContinuousStateDerivativeByIndex(priv->fmu, i);
-            priv->Lfg_dependencies.push_back(h ? read_dependencies(h, priv->vref_map) : std::vector<Dependency>{});
+        if (with_ls_dae)
+        {
+            int n = static_cast<int>(priv->state_vrefs.size());
+            for (int i = 0; i < n; i++) {
+                priv->Lfg_vrefs.push_back(priv->deriv_vrefs[i]);
+                auto* h = fmiLsDae_getContinuousStateDerivativeByIndex(priv->fmu, i);
+                priv->Lfg_dependencies.push_back(h ? read_dependencies(h, priv->vref_map) : std::vector<Dependency>{});
+            }
+        }
+        /*
+        else
+        {
+            for (int i = 0; i < static_cast<int>(priv->state_vrefs.size()); i++) {
+                priv->Lfg_vrefs.push_back(priv->deriv_vrefs[i]);
+                auto dep_vrefs = get_filtered_dependencies(priv->instance, priv->deriv_vrefs[i]);
+                priv->Lfg_dependencies.push_back(make_dep_from_vref(dep_vrefs, priv->vref_map));
+            }
+        }*/
+        else
+        {
+            std::vector<fmi3ValueReference> dense;
+            dense.reserve(priv->state_vrefs.size() + priv->input_vrefs.size());
+
+            for (auto vref : priv->state_vrefs)
+            {
+                dense.push_back(vref);
+            }
+
+            for (auto vref : priv->input_vrefs)
+            {
+                dense.push_back(vref);
+            }
+
+            for (int i = 0; i < static_cast<int>(priv->state_vrefs.size()); i++) {
+                priv->Lfg_vrefs.push_back(priv->deriv_vrefs[i]);
+                priv->Lfg_dependencies.push_back(make_dep_from_vref(dense, priv->vref_map));
+            }
         }
     }
 

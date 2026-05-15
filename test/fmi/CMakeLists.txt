@@ -54,7 +54,7 @@ target_compile_definitions(ls_dae_crane PRIVATE
 
 add_test(NAME ls_dae_crane COMMAND ls_dae_crane)
 
-# FMI ls-dae test 4
+# FMI ls-dae test 4 - DAE Multilink
 add_executable(ls_dae_multilink ls_dae_multilink.cpp)
 
 target_link_libraries(ls_dae_multilink PRIVATE fmi4c moo)
@@ -64,3 +64,14 @@ target_compile_definitions(ls_dae_multilink PRIVATE
 )
 
 add_test(NAME ls_dae_multilink COMMAND ls_dae_multilink)
+
+# FMI ls-dae test 5 - ODE Multilink
+add_executable(ls_dae_multilink_ode ls_dae_multilink_ode.cpp)
+
+target_link_libraries(ls_dae_multilink_ode PRIVATE fmi4c moo)
+
+target_compile_definitions(ls_dae_multilink_ode PRIVATE
+    MULTILINK_ODE_FMU_PATH="$ENV{MULTILINK_ODE_FMU}"
+)
+
+add_test(NAME ls_dae_multilink_ode COMMAND ls_dae_multilink_ode)
