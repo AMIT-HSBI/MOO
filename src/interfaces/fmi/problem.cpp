@@ -1044,7 +1044,7 @@ void main_fmi(FMISettings& settings) {
     nlp_solver_settings.set(NLP::Option::Hessian, NLP::HessianOption::LBFGS);
     nlp_solver_settings.set(NLP::Option::Jacobian, NLP::JacobianOption::Exact);
     nlp_solver_settings.set(NLP::Option::Gradient, NLP::GradientOption::Exact);
-    nlp_solver_settings.set(NLP::Option::IpoptDerivativeTest, true);
+    // nlp_solver_settings.set(NLP::Option::IpoptDerivativeTest, true);
     nlp_solver_settings.set(NLP::Option::Tolerance, settings.tolerance);
     nlp_solver_settings.print();
 

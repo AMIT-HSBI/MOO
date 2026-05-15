@@ -28,9 +28,9 @@ int main() {
     settings.modelname = "Multilink";
     settings.t0 = 0.0;
     settings.tf = 2.0;
-    settings.intervals = 100;
+    settings.intervals = 400;
     settings.stage = 1;
-    settings.tolerance = 1e-8;
+    settings.tolerance = 1e-6;
 
     // control
     uint32_t vref_u = 620756992;
@@ -40,14 +40,17 @@ int main() {
     uint32_t vref_w_a = 33554433;
 
     f64 factor_u = 1e-12;
-    f64 factor_phi = 1e4;
+    f64 factor_phi = 1e3;
+    f64 phi_0 = -0.28;
+    f64 phi_A = 0.13;
+    f64 phi_f = 1.0;
 
     settings.control_vrefs.push_back( { vref_u, -2e6, 2e6 } );
-    settings.fixed_start_values = { {vref_phi, -0.286848}, {vref_w_a, 0.81} };
-    settings.nominals = { { vref_u, 1 } };
+    settings.fixed_start_values = { {vref_phi, phi_0}, {vref_w_a, 2 * M_PI * phi_A * phi_f} };
+    settings.nominals = { { vref_u, 2e6 } };
 
     auto u_penalty = FMI::ExprTerm::quadratic_term(vref_u, factor_u);
-    auto phi_penalty = FMI::ExprTerm::tracking_term(vref_phi, [](f64 t) -> f64 { return -0.286848 + 0.13 * sin(2 * M_PI * t);}, factor_phi);
+    auto phi_penalty = FMI::ExprTerm::tracking_term(vref_phi, [&](f64 t) -> f64 { return phi_0 + phi_A * sin(2 * M_PI * t * phi_f);}, factor_phi);
 
     settings.lagrange_expr.terms = { phi_penalty, u_penalty };
 
