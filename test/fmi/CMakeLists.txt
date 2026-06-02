@@ -9,69 +9,62 @@ target_compile_definitions(fmi_sanity_check PRIVATE
 
 add_test(NAME fmi_sanity_check COMMAND fmi_sanity_check)
 
-# fmi-ls-dae sanity check - references an FMU that is not redistributable,
-# so the path is supplied via the SIMPLE_DAE_FMU environment variable.
-if(DEFINED ENV{SIMPLE_DAE_FMU})
-    add_executable(lsdae_sanity_check lsdae_sanity_check.c)
-    target_link_libraries(lsdae_sanity_check PRIVATE fmi4c)
-    target_compile_definitions(lsdae_sanity_check PRIVATE
-        SIMPLE_DAE_FMU_PATH="$ENV{SIMPLE_DAE_FMU}"
-    )
-    add_test(NAME lsdae_sanity_check COMMAND lsdae_sanity_check)
-else()
-    message(WARNING "SIMPLE_DAE_FMU not set - skipping lsdae_sanity_check")
-endif()
+function(add_fmu_test target source env_var macro_name)
+    if(DEFINED ENV{${env_var}})
+        add_executable(${target} ${source})
 
-# FMI ls-dae test 1
-add_executable(ls_dae_fourbar ls_dae_fourbar.cpp)
+        target_link_libraries(${target} PRIVATE fmi4c moo)
 
-target_link_libraries(ls_dae_fourbar PRIVATE fmi4c moo)
+        target_compile_definitions(${target} PRIVATE
+            ${macro_name}="$ENV{${env_var}}"
+        )
 
-target_compile_definitions(ls_dae_fourbar PRIVATE
-    FOURBAR_FMU_PATH="$ENV{FOURBAR_FMU}"
+        add_test(NAME ${target} COMMAND ${target})
+    else()
+        message(STATUS "${env_var} not set - skipping ${target}")
+    endif()
+endfunction()
+
+# FMI-LS-DAE sanity check
+add_fmu_test(
+    lsdae_sanity_check
+    lsdae_sanity_check.c
+    SIMPLE_DAE_FMU
+    SIMPLE_DAE_FMU_PATH
 )
 
-add_test(NAME ls_dae_fourbar COMMAND ls_dae_fourbar)
-
-# FMI ls-dae test 2
-add_executable(ls_dae_simple_dae ls_dae_simple_dae.cpp)
-
-target_link_libraries(ls_dae_simple_dae PRIVATE fmi4c moo)
-
-target_compile_definitions(ls_dae_simple_dae PRIVATE
-    SIMPLE_DAE_FMU_PATH="$ENV{SIMPLE_DAE_FMU}"
+# FMI-LS-DAE examples
+add_fmu_test(
+    ls_dae_fourbar
+    ls_dae_fourbar.cpp
+    FOURBAR_FMU
+    FOURBAR_FMU_PATH
 )
 
-add_test(NAME ls_dae_simple_dae COMMAND ls_dae_simple_dae)
-
-# FMI ls-dae test 3
-add_executable(ls_dae_crane ls_dae_crane.cpp)
-
-target_link_libraries(ls_dae_crane PRIVATE fmi4c moo)
-
-target_compile_definitions(ls_dae_crane PRIVATE
-    CRANE_FMU_PATH="$ENV{CRANE_FMU}")
-
-add_test(NAME ls_dae_crane COMMAND ls_dae_crane)
-
-# FMI ls-dae test 4 - DAE Multilink
-add_executable(ls_dae_multilink ls_dae_multilink.cpp)
-
-target_link_libraries(ls_dae_multilink PRIVATE fmi4c moo)
-
-target_compile_definitions(ls_dae_multilink PRIVATE
-    MULTILINK_FMU_PATH="$ENV{MULTILINK_FMU}"
+add_fmu_test(
+    ls_dae_simple_dae
+    ls_dae_simple_dae.cpp
+    SIMPLE_DAE_FMU
+    SIMPLE_DAE_FMU_PATH
 )
 
-add_test(NAME ls_dae_multilink COMMAND ls_dae_multilink)
-
-# FMI ls-dae test 5 - ODE Multilink
-add_executable(ls_dae_multilink_ode ls_dae_multilink_ode.cpp)
-
-target_link_libraries(ls_dae_multilink_ode PRIVATE fmi4c moo)
-
-target_compile_definitions(ls_dae_multilink_ode PRIVATE
-    MULTILINK_ODE_FMU_PATH="$ENV{MULTILINK_ODE_FMU}"
+add_fmu_test(
+    ls_dae_crane
+    ls_dae_crane.cpp
+    CRANE_FMU
+    CRANE_FMU_PATH
 )
 
-add_test(NAME ls_dae_multilink_ode COMMAND ls_dae_multilink_ode)
+add_fmu_test(
+    ls_dae_multilink
+    ls_dae_multilink.cpp
+    MULTILINK_FMU
+    MULTILINK_FMU_PATH
+)
+
+add_fmu_test(
+    ls_dae_multilink_ode
+    ls_dae_multilink_ode.cpp
+    MULTILINK_ODE_FMU
+    MULTILINK_ODE_FMU_PATH
+)
