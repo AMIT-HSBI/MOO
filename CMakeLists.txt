@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 option(MOO_WITH_RADAU "Enable RADAU build and linking" ON)
 option(MOO_WITH_C_INTERFACE "Build MOO with C-interface support" ON)
-option(MOO_WITH_FMI_INTERFACE "Build MOO with FMI-interface support" ON)
+option(MOO_WITH_FMI_INTERFACE "Build MOO with FMI-interface support" OFF)
 option(MOO_WITH_GDOPT "Build MOO with GDOPT support" ON)
 option(MOO_TESTS "Build MOO with test executables" ON)
 
