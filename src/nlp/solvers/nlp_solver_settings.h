@@ -37,6 +37,16 @@ enum class HessianOption {
     Const
 };
 
+enum class JacobianOption {
+    Exact,
+    FD
+};
+
+enum class GradientOption {
+    Exact,
+    FD
+};
+
 enum class LinearSolverOption {
     MUMPS,
     MA27,
@@ -52,6 +62,8 @@ enum class NLPSolverOption {
 
 enum class Option {
 /* HessianOption         */    Hessian,
+/* JacobianOption        */    Jacobian,
+/* GradientOption        */    Gradient,
 /* f64                   */    Tolerance,
 /* int                   */    Iterations,
 /* f64                   */    CPUTime,
@@ -62,7 +74,7 @@ enum class Option {
 /* bool                  */    QP,
 };
 
-using OptionValue = std::variant<std::string, f64, int, bool, HessianOption, LinearSolverOption, NLPSolverOption>;
+using OptionValue = std::variant<std::string, f64, int, bool, HessianOption, JacobianOption, GradientOption, LinearSolverOption, NLPSolverOption>;
 
 class MOO_EXPORT NLPSolverSettings {
 public:

@@ -160,7 +160,7 @@ void IpoptAdapter::finalize_solution(
     const Ipopt::IpoptData* ip_data,
     Ipopt::IpoptCalculatedQuantities* ip_cq)
 {
-    nlp.solver_finalize_solution(obj_value, x, lambda, z_L, z_U);
+    nlp.solver_finalize_solution(get_return_code(status), obj_value, x, lambda, z_L, z_U);
 };
 
 bool IpoptAdapter::intermediate_callback(
@@ -169,7 +169,7 @@ bool IpoptAdapter::intermediate_callback(
     Ipopt::Number obj_value,
     Ipopt::Number inf_pr,
     Ipopt::Number inf_du,
-    Ipopt::Number mu, 
+    Ipopt::Number mu,
     Ipopt::Number d_norm,
     Ipopt::Number regularization_size,
     Ipopt::Number alpha_du,
@@ -182,5 +182,25 @@ bool IpoptAdapter::intermediate_callback(
     return true;
 };
 
+NLP::ReturnCode IpoptAdapter::get_return_code(Ipopt::SolverReturn status)
+{
+    if (status == Ipopt::SolverReturn::SUCCESS) {
+        return NLP::ReturnCode::OPTIMAL;
+    } else if (status == Ipopt::SolverReturn::STOP_AT_ACCEPTABLE_POINT) {
+        return NLP::ReturnCode::ACCEPTABLE;
+    } else if (status == Ipopt::SolverReturn::STOP_AT_TINY_STEP) {
+        return NLP::ReturnCode::STEP_TOO_SMALL;
+    } else if (status == Ipopt::SolverReturn::DIVERGING_ITERATES) {
+        return NLP::ReturnCode::DIVERGENCE;
+    } else if (status == Ipopt::SolverReturn::LOCAL_INFEASIBILITY) {
+        return NLP::ReturnCode::INFEASIBLE;
+    } else if (status == Ipopt::SolverReturn::RESTORATION_FAILURE) {
+        return NLP::ReturnCode::RESTORATION_FAILED;
+    } else if (static_cast<int>(status) < 0) {
+        return NLP::ReturnCode::GENERIC_FAILURE;
+    } else {
+        return NLP::ReturnCode::UNKNOWN_SUCCESS;
+    }
+}
 
 } // namespace IpoptSolver

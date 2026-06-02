@@ -4,3 +4,6 @@
 [submodule "third-party/Ipopt.cmake"]
 	path = third-party/Ipopt.cmake
 	url = https://github.com/linuslangenkamp/Ipopt.cmake
+[submodule "third-party/fmi4c"]
+	path = third-party/fmi4c
+	url = git@github.com:robbr48/fmi4c.git

@@ -42,7 +42,12 @@ Install with your favorite package manager
   - Debian / Ubuntu: `apt install liblapack-dev`
   - Latest OpenBLAS build from source: add `-DUSE_SYSTEM_LAPACK=OFF -DDOWNLOAD_LAPACK=ON` to the CMake configure command
 
+- [AnHeuermann/fmi4c fmi-ls-dae](https://github.com/AnHeuermann/fmi4c/tree/fmi-ls-dae)
+
+  - Set environment variable `SIMPLE_DAE_FMU` pointing to `fmi-ls-dae-sandbox/Dymola/SimpleDAE.fmu`.
+
 #### Optional
+
 - METIS
 
   - Debian / Ubuntu `apt install libmetis-dev`
@@ -94,7 +99,7 @@ act -P ubuntu-latest=catthehacker/ubuntu:full-latest --artifact-server-path $PWD
 
 ### Free Initial or Final Time
 The most generic problem directly implemented in MOO is a General Dynamic Optimization Problem (GDOP) with free control variables $u(t)$, free static parameters
-$p$, free final time $t_0$ and free final time $t_f$ of the form:
+$p$, free initial time $t_0$ and free final time $t_f$ of the form:
 
 ```math
 \begin{aligned}
@@ -138,6 +143,81 @@ If the problem is given on a fixed time horizon $[t_0, t_f]$, the library can al
 ```
 
 In this version, the user is also allowed to use the provided time variable $t$ in the functions $L, f, g$.
+
+### Direct Collocation Transcription
+
+GDOPs are transcribed to a finite-dimensional NLP by direct
+collocation. MOO uses flipped Legendre-Gauss-Radau collocation, where the
+continuous state and control trajectories are represented at each collocation
+node, while static parameters and optional free times are represented once
+globally. The resulting NLP contains the collocated dynamics, path constraints,
+boundary constraints, variable bounds and the discretized Mayer/Lagrange
+objective.
+
+The user-facing problem is implemented as a `GDOP::Problem` class. It provides
+the dimensions, bounds, initial guesses and callback functions for objective
+terms, dynamics, path constraints, boundary constraints and their derivatives.
+MOO then assembles the sparse NLP structure, applies scaling, maps solver
+variables back to trajectories and exposes the final primal-dual trajectory,
+i.e. primal optimal solution / states, controls and parameters as well as
+continuous duals / costate estimations after optimization.
+
+One central capability of the GDOP is the pluggable strategy concept. Users can use the
+default strategies or provide custom ones, for example for
+initialization or adaptive mesh refinement; see `src/nlp/instances/gdop/strategies.h` and
+`src/nlp/instances/gdop/strategies.cpp`. These strategies are coordinated by
+the GDOP orchestrator in `src/nlp/instances/gdop/orchestrator.cpp`, allowing
+solver workflows to be extended without changing the continuous problem
+definition. Adaptive mesh refinement for this collocation-based workflow is
+discussed in "Enhancing Collocation-Based Dynamic Optimization through Adaptive
+Mesh Refinement", Linus Langenkamp and Bernhard Bachmann, 16th International
+Modelica & FMI Conference, 2025, DOI: 10.3384/ecp218127.
+
+More detailed API documentation for implementing GDOPs is in
+`reference/gdop.md`.
+
+## Consistent Initialization of DAEs
+
+MOO also provides an `Init` NLP instance for consistent initialization of
+differential-algebraic equation systems. The problem starts from an initial
+state and parameter guess `(y, p0)` and solves for state values `y` and
+parameter corrections, with callbacks evaluated at the corrected parameters
+defined below:
+
+```math
+p = p_0 + \Delta p
+```
+
+```math
+\begin{aligned}
+\min_{y, \Delta p}\quad
+& J(y, p) \\[4pt]
+\text{s.t.}\quad
+& F(y, p) = 0, \\[2pt]
+& g^L \le G(y, p) \le g^U, \\[2pt]
+& y^L \le y \le y^U,\quad
+  p^L \le p \le p^U,\quad
+  \Delta p^L \le \Delta p \le \Delta p^U.
+\end{aligned}
+```
+
+The objective can be user-defined, zero for pure feasibility, or the built-in
+least-squares parameter correction
+
+```math
+\sum_i \left(\frac{\Delta p_i}{p_{\mathrm{nominal},i}}\right)^2
+```
+
+This makes initialization usable both as a
+standard feasibility problem and as a parameter-correction
+problem when the original DAE initialization is inconsistent.
+
+The implementation lives in `src/nlp/instances/init/`. Small objective and
+Hessian checks are in `test/init/`, and `test/init/init_benchmark.cpp` contains
+a scalable synthetic chemical-equilibrium initialization benchmark.
+
+More detailed API documentation for implementing `Init` is in
+`reference/init.md`.
 
 ## License
 

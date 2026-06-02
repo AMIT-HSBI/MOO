@@ -237,6 +237,7 @@ void NLP::solver_eval_hes(
 }
 
 void NLP::solver_finalize_solution(
+    ReturnCode ret,
     const f64  solver_obj_value,
     const f64* solver_x,
     const f64* solver_lambda,
@@ -249,7 +250,7 @@ void NLP::solver_finalize_solution(
     unscale_dual_bounds(solver_z_lb, solver_z_ub);    // unscaled optimal dual bound multipliers
 
     // user defined callback to extract info
-    finalize_solution(curr_obj, curr_x, curr_lambda, z_lb, z_ub);
+    finalize_solution(ret, curr_obj, curr_x, curr_lambda, z_lb, z_ub);
 }
 
 f64 NLP::get_objective_value() const {

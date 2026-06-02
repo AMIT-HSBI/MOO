@@ -33,6 +33,8 @@ namespace NLP {
 
 const std::unordered_map<Option, OptionValue> default_settings = {
     {Option::Hessian,             HessianOption::Exact},
+    {Option::Jacobian,            JacobianOption::Exact},
+    {Option::Gradient,            GradientOption::Exact},
     {Option::Tolerance,           1e-10},
     {Option::Iterations,          5000},
     {Option::CPUTime,             3600.0},
@@ -48,6 +50,8 @@ const std::unordered_map<Option, OptionValue> default_settings = {
 std::string to_string(Option option) {
     switch (option) {
         case Option::Hessian:             return "Hessian";
+        case Option::Jacobian:            return "Jacobian";
+        case Option::Gradient:            return "Gradient";
         case Option::Tolerance:           return "Tolerance";
         case Option::Iterations:          return "Iterations";
         case Option::CPUTime:             return "CPUTime";
@@ -63,6 +67,8 @@ std::string to_string(Option option) {
 std::optional<Option> option_from_string(const std::string& name) {
     static const std::unordered_map<std::string, Option> map = {
         {"Hessian", Option::Hessian},
+        {"Jacobian", Option::Jacobian},
+        {"Gradient", Option::Gradient},
         {"Tolerance", Option::Tolerance},
         {"Iterations", Option::Iterations},
         {"CPUTime", Option::CPUTime},
@@ -139,6 +145,18 @@ void NLPSolverSettings::print() const {
                     case HessianOption::Const: return "Const";
                     default: return "<invalid HessianOption>";
                 }
+            } else if constexpr (std::is_same_v<T, JacobianOption>) {
+                switch (v) {
+                    case JacobianOption::Exact: return "Exact";
+                    case JacobianOption::FD: return "FD";
+                    default: return "<invalid JacobianOption>";
+                }
+            } else if constexpr (std::is_same_v<T, GradientOption>) {
+                switch (v) {
+                    case GradientOption::Exact: return "Exact";
+                    case GradientOption::FD: return "FD";
+                    default: return "<invalid GradientOption>";
+                }
             } else if constexpr (std::is_same_v<T, LinearSolverOption>) {
                 switch (v) {
                     case LinearSolverOption::MUMPS: return "MUMPS";
@@ -202,6 +220,8 @@ template f64 NLPSolverSettings::get_or_default<f64>(Option) const;
 template bool NLPSolverSettings::get_or_default<bool>(Option) const;
 template std::string NLPSolverSettings::get_or_default<std::string>(Option) const;
 template HessianOption NLPSolverSettings::get_or_default<HessianOption>(Option) const;
+template JacobianOption NLPSolverSettings::get_or_default<JacobianOption>(Option) const;
+template GradientOption NLPSolverSettings::get_or_default<GradientOption>(Option) const;
 template LinearSolverOption NLPSolverSettings::get_or_default<LinearSolverOption>(Option) const;
 template NLPSolverOption NLPSolverSettings::get_or_default<NLPSolverOption>(Option) const;
 

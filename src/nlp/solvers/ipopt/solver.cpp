@@ -264,6 +264,28 @@ void IpoptSolver::set_settings() {
             break;
     }
 
+    // --- jacobian options ---
+    NLP::JacobianOption jac_opt = solver_settings.get_or_default<NLP::JacobianOption>(NLP::Option::Jacobian);
+    switch (jac_opt) {
+        case NLP::JacobianOption::FD:
+            ipdata->app->Options()->SetStringValue("jacobian_approximation", "finite-difference-values");
+            break;
+        case NLP::JacobianOption::Exact:
+            ipdata->app->Options()->SetStringValue("jacobian_approximation", "exact");
+            break;
+    }
+
+    // --- gradient options ---
+    NLP::GradientOption grad_opt = solver_settings.get_or_default<NLP::GradientOption>(NLP::Option::Gradient);
+    switch (grad_opt) {
+        case NLP::GradientOption::FD:
+            ipdata->app->Options()->SetStringValue("gradient_approximation", "finite-difference-values");
+            break;
+        case NLP::GradientOption::Exact:
+            ipdata->app->Options()->SetStringValue("gradient_approximation", "exact");
+            break;
+    }
+
     // --- warm start ---
     if (solver_settings.option_is_true(NLP::Option::WarmStart)) {
         ipdata->app->Options()->SetStringValue("warm_start_init_point", "yes");

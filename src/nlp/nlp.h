@@ -29,6 +29,18 @@
 
 namespace NLP {
 
+
+enum class MOO_EXPORT ReturnCode : int {
+    GENERIC_FAILURE    = -4,
+    RESTORATION_FAILED = -3,
+    INFEASIBLE         = -2,
+    DIVERGENCE         = -1,
+    OPTIMAL            = 0,
+    ACCEPTABLE         = 1,
+    STEP_TOO_SMALL     = 2,
+    UNKNOWN_SUCCESS    = 3
+};
+
 /**
  * @brief Generic NLP base class for optimization problems.
  *
@@ -278,14 +290,15 @@ public:
      * This method is called by the solver after a solution has been found, allowing
      * the user to process or store the optimal values.
      *
-     * @param[in] MOO_obj The optimal objective function value.
-     * @param[in] MOO_x The optimal primal variables \f$x^*\f$.
-     * @param[in] MOO_lambda The optimal dual variables (Lagrange multipliers) \f$\lambda^*\f$.
-     * @param[in] MOO_z_lb The optimal dual multipliers for the lower variable bounds \f$z_{LB}^*\f$.
-     * @param[in] MOO_z_ub The optimal dual multipliers for the upper variable bounds \f$z_{UB}^*\f$.
+     * @param[in] opt_obj The optimal objective function value.
+     * @param[in] opt_x The optimal primal variables \f$x^*\f$.
+     * @param[in] opt_lambda The optimal dual variables (Lagrange multipliers) \f$\lambda^*\f$.
+     * @param[in] opt_z_lb The optimal dual multipliers for the lower variable bounds \f$z_{LB}^*\f$.
+     * @param[in] opt_z_ub The optimal dual multipliers for the upper variable bounds \f$z_{UB}^*\f$.
      */
     virtual void finalize_solution(
-        f64 MOO_obj,
+        ReturnCode ret,
+        f64 opt_obj,
         const FixedVector<f64>& opt_x,
         const FixedVector<f64>& opt_lambda,
         const FixedVector<f64>& opt_z_lb,
@@ -498,6 +511,7 @@ public:
      * @param[in] solver_z_ub Pointer to an array containing the optimal dual multipliers for upper variable bounds \f$z_{UB}^*\f$ (scaled).
      */
     void solver_finalize_solution(
+        ReturnCode ret,
         const f64  solver_obj_value,
         const f64* solver_x,
         const f64* solver_lambda,

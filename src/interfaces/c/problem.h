@@ -61,9 +61,9 @@ public:
           c_callbacks(c_problem->callbacks),
           c_problem(c_problem) {};
 
-    void callback_eval(const f64* x0_nlp, const f64* xuf_nlp, const f64* p, f64 t0, f64 tf) override;
-    void callback_jac(const f64* x0_nlp, const f64* xuf_nlp, const f64* p, f64 t0, f64 tf) override;
-    void callback_hes(const f64* x0_nlp, const f64* xuf_nlp, const f64* p, f64 t0, f64 tf, const f64 mayer_factor, const f64* lambda) override;
+    void callback_eval(const f64* xu0_nlp, const f64* xuf_nlp, const f64* p, f64 t0, f64 tf) override;
+    void callback_jac(const f64* xu0_nlp, const f64* xuf_nlp, const f64* p, f64 t0, f64 tf) override;
+    void callback_hes(const f64* xu0_nlp, const f64* xuf_nlp, const f64* p, f64 t0, f64 tf, const f64 mayer_factor, const f64* lambda) override;
 
 private:
     inline f64* get_data_t0() {

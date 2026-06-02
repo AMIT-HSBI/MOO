@@ -820,15 +820,15 @@ void GDOP::get_hes_sparsity(
 
 /*
  * NLP function evaluations happen in two stages:
- * 
+ *
  * 1. Callback / continuous problem computation:
  *    - Fill input buffers (x, lambda, sigma).
  *    - Run callbacks (evaluation, Jacobian, or, Hessian) to compute all necessary information.
- * 
+ *
  * 2. NLP computation:
  *    - Evaluate the NLP function using pre-filled buffers and structures.
  *
- * Because callbacks are only in stage 1, and all data is ready before stage 2, 
+ * Because callbacks are only in stage 1, and all data is ready before stage 2,
  * the stage 2 computations are always thread-safe and parallelizable.
  *
  * Every NLP evaluation must call `check_new_x()` (and possibly lambda/sigma) to trigger callbacks if needed.
@@ -1403,34 +1403,16 @@ void GDOP::accumulate_hessian_from_lagrangian_gradient_lf_jac(int block_count,
  *
  * When solving a dynamic optimization problem using direct collocation with flipped Legendre-Gauss-Radau (fLGR)
  * quadrature, the optimizer returns Karush-Kuhn-Tucker (KKT) multipliers.
- * These discrete multipliers represent the sensitivity of the objective function to changes in the
- * constraints at specific collocation points. To obtain **smooth, continuous-time trajectories**, and also
- * continuous costate estimates, and other dual variables, these discrete multipliers must be transformed.
  *
- * IPOPT returns KKT multipliers for:
- * - **ODE constraints** ($\lambda_f$): Duals associated with the system dynamics.
- * - **Path constraints** ($\lambda_g$): Duals for inequality constraints that apply over the trajectory.
- * - **Boundary constraints** ($\lambda_r$): Duals for inequality constraints at the initial/final time.
- * - **Bound constraints on x, u, p** ($z_{lb}, z_{ub}$): Multipliers for lower and upper bounds on states, controls, and parameters.
+ * These discrete multipliers have continuous analogs in a optimize => discretize approach. These continuous multipliers
+ * also called costates for the dynamic, can be reconstructed from the KKT multipliers.
  *
  * The transformation from discrete NLP multipliers to continuous-time trajectories for each
- * collocation point $t_{ij}$ with quadrature weight $b_j$ is as follows:
+ * collocation point t_{ij} with quadrature weight b_j and interval length h_i is as follows:
  *
- * $\lambda_f(t_{ij})  = -\lambda_{f\_NLP}(t_{ij}) / b_j$     // Dynamics: Requires a sign flip and scaling by the quadrature weight.
- * $\lambda_g(t_{ij})  = -\lambda_{g\_NLP}(t_{ij}) / b_j$     // Path constraints: Requires scaling by the quadrature weight; sign convention may vary based on problem formulation.
- * $\zeta_{xu}(t_{ij}) = -z_{NLP}(t_{ij}) / b_j$              // Bound multipliers ($\zeta$): Requires scaling by the quadrature weight; sign convention may vary based on problem formulation.
- *
- * Note: Multipliers for static parameters `p` and boundary constraints `r` are generally not
- * scaled by quadrature weights as they are static and not distributed across collocation points.
- *
- * **Important Considerations:**
- * - **Sign Conventions:** Be vigilant about sign conventions, as they can differ between optimization solvers and theoretical definitions.
- *          The negative sign in the transformation for $\lambda_f$ is crucial for obtaining the correct costates.
- * - **Numerical Noise:** Very small bound multipliers (e.g., below $1 \times 10^{-10}$ after scaling) likely exhibit numerical noise. These often arise
- *          from the interior-point nature of the solver and loose thresholds for constraint activity. Such values typically do not exhibit the
- *          expected polynomial structure of collocation and can often be safely ignored or thresholded (e.g., set to fixed eps when below a cutoff).
- * - **Smoothness of Bound Multipliers:** Bound multipliers $\zeta_x(t)$ and $\zeta_u(t)$ may appear smooth (exhibiting the expected piecewise polynomial structure)
- *          if the corresponding bound constraint is active over a full collocation interval.
+ * \lambda_f(t_{ij})  = -\lambda_{f\_NLP}(t_{ij}) / b_j         | proven
+ * \lambda_g(t_{ij})  = \lambda_{g\_NLP}(t_{ij}) / (h_i * b_j)  | proven
+ * \zeta_{xu}(t_{ij}) = z_{NLP}(t_{ij}) / b_j                   | seems to be fishy, always oscillations in either variable (would want scaling with b_j or not?!)
  */
 
 void GDOP::flatten_trajectory_to_layout(const Trajectory& trajectory, FixedVector<f64>& flat_buffer, bool from_costates) {
@@ -1546,8 +1528,6 @@ std::unique_ptr<Trajectory> GDOP::finalize_optimal_primals(const FixedVector<f64
  * This function applies the necessary scaling and sign flips to convert NLP KKT multipliers
  * for ODE constraints ($\lambda_f$) and path constraints ($\lambda_g$) into their
  * continuous-time costate equivalents, or to convert costates back into NLP duals.
- * The transformation involves dividing (or multiplying) by the negative of the
- * collocation quadrature weights ($b_j$).
  *
  * The transformation is applied in-place to the provided `lambda` vector.
  *
@@ -1557,14 +1537,59 @@ std::unique_ptr<Trajectory> GDOP::finalize_optimal_primals(const FixedVector<f64
 void GDOP::transform_duals_costates(FixedVector<f64>& lambda, bool to_costate) {
     for (int i = 0; i < mesh->intervals; i++) {
         for (int j = 0; j < mesh->nodes[i]; j++) {
-            for (int fg_index = 0; fg_index < problem.pc->fg_size; fg_index++) {
+            int fg_index = 0;
+
+            if (to_costate) {
+                // lambda_f(t_ij) = -nlp_lambda_ij / b_j
+                for (fg_index = 0; fg_index < problem.pc->f_size; fg_index++) {
+                    lambda[off_acc_fg[i][j] + fg_index] /= -fLGR::get_b(mesh->nodes[i], j);
+                }
+
+                // lambda_g(t_ij) = nlp_lambda_ij / (h * b_j)
+                for (; fg_index < problem.pc->fg_size; fg_index++) {
+                    lambda[off_acc_fg[i][j] + fg_index] /= (fLGR::get_b(mesh->nodes[i], j) * mesh->delta_t[i]);
+                }
+            }
+            else {
+                // lambda_f(t_ij) = -nlp_lambda_ij / b_j
+                for (fg_index = 0; fg_index < problem.pc->f_size; fg_index++) {
+                    lambda[off_acc_fg[i][j] + fg_index] *= -fLGR::get_b(mesh->nodes[i], j);
+                }
+
+                // lambda_g(t_ij) = nlp_lambda_ij * (h * b_j)
+                for (; fg_index < problem.pc->fg_size; fg_index++) {
+                    lambda[off_acc_fg[i][j] + fg_index] *= (fLGR::get_b(mesh->nodes[i], j) * mesh->delta_t[i]);
+                }
+            }
+        }
+    }
+}
+
+/**
+ * @brief Transforms dual multipliers for variable bounds to their continuous-time costate equivalents, or vice-versa.
+ *
+ * This function performs the transformation of IPOPT's KKT multipliers for lower and upper
+ * bounds on states (`x`) and controls (`u`) into their continuous-time dual counterparts
+ * ($\zeta_x(t)$ and $\zeta_u(t)$).
+ *
+ * The transformation is applied in-place to the provided `zeta` vector.
+ *
+ * @param zeta A `FixedVector<f64>` containing the bound multipliers or their transformed costate equivalents.
+ * @param to_costate A boolean flag. If `true`, transforms NLP duals to costates. If `false`, transforms costates to NLP duals.
+ *
+ * @attention The sign convention for non-ODE costates is not clear right now.
+ */
+void GDOP::transform_duals_costates_bounds(FixedVector<f64>& zeta, bool to_costate) {
+    for (int i = 0; i < mesh->intervals; i++) {
+        for (int j = 0; j < mesh->nodes[i]; j++) {
+            for (int xu_index = 0; xu_index < off_xu; xu_index++) {
                 if (to_costate) {
                     // NLP dual lambda -> costates lambda
-                    lambda[off_acc_fg[i][j] + fg_index] /= -fLGR::get_b(mesh->nodes[i], j);
+                    zeta[off_acc_xu[i][j] + xu_index] /= fLGR::get_b(mesh->nodes[i], j);
                 }
                 else {
                     // costates lambda -> NLP dual lambda
-                    lambda[off_acc_fg[i][j] + fg_index] *= -fLGR::get_b(mesh->nodes[i], j);
+                    zeta[off_acc_xu[i][j] + xu_index] *= fLGR::get_b(mesh->nodes[i], j);
                 }
             }
         }
@@ -1646,39 +1671,6 @@ std::unique_ptr<CostateTrajectory> GDOP::finalize_optimal_costates(const FixedVe
     }
 
     return optimal_costates;
-}
-
-
-/**
- * @brief Transforms dual multipliers for variable bounds to their continuous-time costate equivalents, or vice-versa.
- *
- * This function performs the transformation of IPOPT's KKT multipliers for lower and upper
- * bounds on states (`x`) and controls (`u`) into their continuous-time dual counterparts
- * ($\zeta_x(t)$ and $\zeta_u(t)$). The transformation involves dividing (or multiplying)
- * by the negative of the collocation quadrature weights ($b_j$).
- *
- * The transformation is applied in-place to the provided `zeta` vector.
- *
- * @param zeta A `FixedVector<f64>` containing the bound multipliers or their transformed costate equivalents.
- * @param to_costate A boolean flag. If `true`, transforms NLP duals to costates. If `false`, transforms costates to NLP duals.
- *
- * @attention The sign convention for non-ODE costates is not clear right now.
- */
-void GDOP::transform_duals_costates_bounds(FixedVector<f64>& zeta, bool to_costate) {
-    for (int i = 0; i < mesh->intervals; i++) {
-        for (int j = 0; j < mesh->nodes[i]; j++) {
-            for (int xu_index = 0; xu_index < off_xu; xu_index++) {
-                if (to_costate) {
-                    // NLP dual lambda -> costates lambda
-                    zeta[off_acc_xu[i][j] + xu_index] /= -fLGR::get_b(mesh->nodes[i], j);
-                }
-                else {
-                    // costates lambda -> NLP dual lambda
-                    zeta[off_acc_xu[i][j] + xu_index] *= -fLGR::get_b(mesh->nodes[i], j);
-                }
-            }
-        }
-    }
 }
 
 /**
@@ -1783,6 +1775,7 @@ std::pair<std::unique_ptr<Trajectory>, std::unique_ptr<Trajectory>> GDOP::finali
  * `PrimalDualTrajectory` object and stored in the `optimal_solution` member.
  */
 void GDOP::finalize_solution(
+    ReturnCode ret,
     f64 opt_obj,
     const FixedVector<f64>& opt_x,
     const FixedVector<f64>& opt_lambda,

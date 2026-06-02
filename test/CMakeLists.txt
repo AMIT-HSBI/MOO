@@ -9,3 +9,5 @@ if(NOT MOO_WITH_RADAU)
 endif()
 
 add_subdirectory(gdopt)
+add_subdirectory(fmi)
+add_subdirectory(init)

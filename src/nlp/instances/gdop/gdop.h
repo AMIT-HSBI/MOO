@@ -39,6 +39,7 @@
 namespace GDOP {
 
 using NLP::Scaling;
+using NLP::ReturnCode;
 
 class MOO_EXPORT GDOP : public NLP::NLP {
 public:
@@ -143,6 +144,7 @@ public:
         FixedVector<f64>& curr_hes) override;
 
     void finalize_solution(
+        ReturnCode ret,
         f64 opt_obj,
         const FixedVector<f64>& opt_x,
         const FixedVector<f64>& opt_lambda,
